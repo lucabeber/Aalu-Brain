@@ -28,6 +28,7 @@ from aalu.services.config import (  # noqa: E402
     WindowConfig,
     load_config,
 )
+from aalu.services.tile_proxy import TileProxy  # noqa: E402
 from aalu.services.vehicle_core import VehicleCore  # noqa: E402
 from aalu.ui.bridge import Backend  # noqa: E402
 
@@ -125,6 +126,12 @@ def main(argv: list[str] | None = None) -> int:
         config = dataclasses.replace(
             config, map=dataclasses.replace(config.map, cache_dir=str(Path(cache) / "tiles")))
 
+    proxy: TileProxy | None = None
+    if config.map.proxy:
+        proxy = TileProxy(config.map.tile_url, config.map.user_agent)
+        config = dataclasses.replace(
+            config, map=dataclasses.replace(config.map, tile_url=proxy.start()))
+
     core = VehicleCore(config)
     for item in args.sim:
         key, _, value = item.partition("=")
@@ -161,6 +168,8 @@ def main(argv: list[str] | None = None) -> int:
 
     code = app.exec()
     backend.stop()
+    if proxy:
+        proxy.stop()
     # Tear down QML before the context objects it references.
     for w in windows.values():
         shiboken6.delete(w)

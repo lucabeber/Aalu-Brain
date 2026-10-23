@@ -41,6 +41,8 @@ class MapConfig:
     cache_size_mb: int = 500
     offline_dir: str = ""  # pre-rendered tiles usable without network
     attribution: str = "© OpenStreetMap contributors"
+    # Fetch tiles through the local HTTP/1.1 proxy (works around Qt HTTP/2 tile drops).
+    proxy: bool = True
 
 
 @dataclass(frozen=True)

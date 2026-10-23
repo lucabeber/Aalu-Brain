@@ -33,6 +33,7 @@ reserve_soc_pct = 10      # "empty" for the time estimate
 # Raster tiles; areas already viewed are cached on disk and work offline.
 tile_url = "https://tile.openstreetmap.org/"
 cache_size_mb = 500
+proxy = true              # fetch tiles via a local HTTP/1.1 proxy (avoids Qt HTTP/2 tile drops)
 # offline_dir = "/home/pi/maps/tiles"   # pre-rendered tiles, no network needed
 
 [navigation]
