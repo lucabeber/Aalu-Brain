@@ -26,14 +26,18 @@ log = logging.getLogger(__name__)
 class Backend(QObject):
     # Emitted from adapter threads; Qt queues delivery to the GUI thread.
     _reading = Signal(object)
+    _call = Signal(object)  # run a callable on the GUI thread (navigation results)
     nightModeChanged = Signal()
 
     def __init__(self, core: VehicleCore, parent: QObject | None = None) -> None:
         super().__init__(parent)
         self._core = core
         self._night = core.config.night_mode
+        self._route_id = -1
         self.vehicle = QQmlPropertyMap(self)
         self._reading.connect(self._on_reading)
+        self._call.connect(lambda fn: fn())
+        core.navigation.post = self._call.emit
         core.subscribe(self._on_topics)
 
         self._timer = QTimer(self)
@@ -72,6 +76,12 @@ class Backend(QObject):
                 {"id": a.id, "severity": a.severity.value, "message": a.message}
                 for a in core.alarms.active
             ])
+        if "navigation" in topics:
+            nav = core.navigation.view()
+            if nav["route"]["route_id"] != self._route_id:
+                self._route_id = nav["route"]["route_id"]
+                self.vehicle.insert("navigationPath", core.navigation.path())
+            self.vehicle.insert("navigation", nav)
         if "events" in topics:
             self.vehicle.insert("events", [{"time": t, "text": x} for t, x in core.events])
         if "diagnostics" in topics:
@@ -87,7 +97,8 @@ class Backend(QObject):
         self.vehicle.insert("navigationAvailable", bool(core.config.navigation_command))
         self.vehicle.insert("mapConfig", dataclasses.asdict(core.config.map))
         self._on_topics(set(core.store.sources())
-                        | {"mode", "alarms", "events", "diagnostics", "loads", "energy"})
+                        | {"mode", "alarms", "events", "diagnostics", "loads", "energy",
+                           "navigation"})
 
     # --- theme -----------------------------------------------------------
     def _get_night(self) -> bool:
@@ -99,6 +110,11 @@ class Backend(QObject):
             self.nightModeChanged.emit()
 
     nightMode = Property(bool, _get_night, _set_night, notify=nightModeChanged)
+
+    def _get_keyboard(self) -> bool:
+        return self._core.config.virtual_keyboard
+
+    virtualKeyboard = Property(bool, _get_keyboard, constant=True)
 
     # --- commands from QML -----------------------------------------------
     @Slot()
@@ -139,6 +155,22 @@ class Backend(QObject):
     def setEqPreset(self, name: str) -> None:
         if self._core.audio and not self._core.drive_locked:
             self._core.audio.set_eq_preset(name)
+
+    @Slot(str)
+    def searchDestination(self, query: str) -> None:
+        self._core.search_destination(query)
+
+    @Slot(int)
+    def chooseDestination(self, index: int) -> None:
+        self._core.choose_destination(index)
+
+    @Slot()
+    def cancelRoute(self) -> None:
+        self._core.navigation.cancel()
+
+    @Slot()
+    def clearSearch(self) -> None:
+        self._core.navigation.clear_search()
 
     @Slot()
     def protectClip(self) -> None:

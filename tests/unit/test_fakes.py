@@ -151,3 +151,19 @@ def test_reverse_moves_backwards_slowly(clock):
     gnss = FakeGnss(sc, clock=clock)
     clock.advance(1)
     assert gnss.read().speed_kmh == 4.0
+
+
+def test_fake_gnss_follows_navigation_route_and_stops_at_the_end(clock):
+    gnss = FakeGnss(Scenario(), clock=clock)
+    gnss.follow([(46.0, 11.0), (46.001, 11.0)])  # ~111 m
+    clock.advance(1)
+    first = gnss.read()
+    assert first.lat == pytest.approx(46.0, abs=0.0005)
+    clock.advance(60)
+    end = gnss.read()
+    clock.advance(1)
+    parked = gnss.read()
+    assert end.lat == pytest.approx(46.001) and parked.speed_kmh == 0
+    gnss.follow(None)  # back to the home loop
+    clock.advance(1)
+    assert gnss.read().lat != pytest.approx(46.001)

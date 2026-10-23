@@ -13,6 +13,7 @@ Automated (A) tests run in CI; manual (M) tests are run and recorded on the benc
 | AT-GNSS-03 | M | outdoors, cold start | fix obtained; coordinates match a phone within ~10 m; time to first fix recorded | G4 |
 | AT-GNSS-04 | M | unplug receiver while running | `stale` after 3 s, `disconnected` after 10 s; recovers on re-plug | G4 |
 | AT-NAV-01 | M | Pure Maps + OSM Scout Server on Pi, Wi-Fi off | route computed and displayed on the test route | G4 |
+| AT-NAV-02 | M | parked, search "Riva del Garda", pick result, then drive (simulated) | route drawn, ETA plausible, remaining distance decreases, "Arrived" at the end; typing locked while moving | G4 |
 | AT-BT-01 | M | pair 2 different phones, play, pause, next, prev 20× | commands work; reconnect after phone BT off/on | G5 |
 | AT-EN-01 | M | compare battery card with VictronConnect | values match within the device resolution | G7 |
 | AT-VID-01 | A | `pytest tests/integration/test_video_service.py tests/unit/test_video_segments.py` | segments finalized, 5 h retention, both save windows, protected never deleted, crash restart | G6 |

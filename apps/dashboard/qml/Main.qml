@@ -59,6 +59,15 @@ Window {
         }
     }
 
+    // On-screen keyboard (touchscreen without keyboard). Outside the scaled canvas so it
+    // always spans the real screen width.
+    Loader {
+        active: Backend.virtualKeyboard
+        anchors { left: parent.left; right: parent.right; bottom: parent.bottom; top: parent.top }
+        z: 100
+        source: "components/KeyboardPanel.qml"
+    }
+
     // Any touch counts as activity (idle timeout / wake from STANDBY).
     TapHandler { onTapped: Backend.userActivity(); gesturePolicy: TapHandler.DragThreshold }
     Shortcut { sequence: "Ctrl+Q"; onActivated: Qt.quit() }

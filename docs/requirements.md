@@ -9,6 +9,7 @@ Derived from the roadmap (§2, §7, §11). IDs match the roadmap. Status: **draf
 | D-01 | Drive dashboard, Android Auto style: dock + moving map; layouts full map, ¾ map + music, ¾ map + energy; speed, one-touch cameras, no electrical controls | AT-UI-* | done (simulated) |
 | D-02 | Camper dashboard: battery, solar, water, lights, audio, alarms, diagnostics | AT-UI-* | M0 done (simulated) |
 | D-03 | Offline navigation and GNSS position | AT-GNSS-*, AT-NAV-* | parser done; nav app TBD on Pi |
+| D-04 | Destination search on the dashboard map, route with remaining distance/time/ETA, recalculation, arrival; typing blocked while driving; on-screen keyboard | AT-NAV-02 | done (online services; offline with OSM Scout Server TBD) |
 | A-01 | Phone as Bluetooth A2DP source, Pi as sink | AT-BT-* | fake only |
 | A-02 | Play/pause/next/previous, metadata when exposed | AT-BT-* | fake only |
 | E-01 | House battery SOC/V/A; solar and engine (DC-DC) charging; consumption; net; time to full (net > 0) or to reserve SOC (net < 0) | AT-EN-* | done (simulated) |

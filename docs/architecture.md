@@ -97,6 +97,15 @@ from the dock.
 4. Tests: parser/unit tests on recorded data in `tests/fixtures/`, and a hardware test in
    `tests/hardware/` marked `@pytest.mark.hardware`.
 
+## Destination search (`src/aalu/services/navigation.py`)
+
+`NavigationController` runs geocoding/routing in a worker thread and posts results back to
+the GUI thread (`Backend._call`). It exposes `navigation` (search state/results, route
+state, remaining distance/time) and, only when the geometry changes, `navigationPath`.
+Each GNSS fix updates progress (`Polyline.locate`), triggers recalculation after 3 fixes
+more than 60 m off the route, and detects arrival within 40 m. With the fake GNSS, the
+route is handed to `FakeGnss.follow()` so the simulated car drives it.
+
 ## Dashcam ([ADR 0006](decisions/0006-dashcam-storage.md))
 
 `apps/video/main.py` runs `VideoService`: one `CameraRecorder` per camera supervising a

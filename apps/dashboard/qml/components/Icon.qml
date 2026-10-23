@@ -51,6 +51,12 @@ Canvas {
         case "rec":
             g.beginPath(); g.arc(w*.5, h*.5, w*.36, 0, 2*Math.PI); g.stroke()
             g.beginPath(); g.arc(w*.5, h*.5, w*.2, 0, 2*Math.PI); g.fill(); break
+        case "search":
+            g.beginPath(); g.arc(w*.42, h*.42, w*.24, 0, 2*Math.PI); g.stroke()
+            g.beginPath(); g.moveTo(w*.6, h*.6); g.lineTo(w*.84, h*.84); g.stroke(); break
+        case "pin":
+            g.beginPath(); g.arc(w*.5, h*.38, w*.26, Math.PI, 0); g.lineTo(w*.5, h*.92); g.closePath(); g.fill()
+            g.fillStyle = "white"; g.beginPath(); g.arc(w*.5, h*.38, w*.1, 0, 2*Math.PI); g.fill(); break
         case "theme":
             g.beginPath(); g.arc(w*.5, h*.5, w*.32, 0, 2*Math.PI); g.stroke()
             g.beginPath(); g.arc(w*.5, h*.5, w*.32, -Math.PI/2, Math.PI/2); g.closePath(); g.fill(); break

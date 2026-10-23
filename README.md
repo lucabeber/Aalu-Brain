@@ -21,6 +21,13 @@ moving map that follows the car, in three layouts — the choice is remembered:
 plus Camera (rear/front, opens automatically on reverse), Navigate (starts Pure Maps full
 screen, when configured) and Camper (single-screen mode).
 
+**Destination search**: tap *Search destination* on the map, type a place and pick a result
+(nearest places first). The route is drawn with remaining distance, time and arrival clock;
+it is recalculated if you leave it, and the simulated car drives it. Typing is disabled while
+the vehicle moves (switch *Ignition* off on the Simulation page to try it). Search and
+routing use public OpenStreetMap services for now, so they need Internet. On the Pi an
+on-screen keyboard appears (`[ui] virtual_keyboard`; on a PC try `--keyboard on`).
+
 **Camper view**: Energy, Water, Lights, Audio, Alarms, Diagnostics and Simulation pages.
 The Energy page shows the battery %, what the solar panels and the engine (alternator via
 DC-DC) put in, what is being consumed, the net sum, and how long until full (net positive)
@@ -71,6 +78,8 @@ it in *Screen Configuration*: the layout follows.
 | `--layout single\|dual\|auto` | one window with switch / two windows / by number of screens |
 | `--view camper` | start the single window on the camper view |
 | `--page dashcam` | camper page shown first |
+| `--search "Riva del Garda" [--go]` | search at startup (and route to the first result) |
+| `--keyboard on\|off` | on-screen keyboard |
 | `AALU_NO_VIDEO=1` | (environment) do not start the dashcam service |
 | `--only drive` / `--only camper` | open only one view |
 | `--sim gnss_fix=false` | start with a fault injected (repeatable; keys below) |

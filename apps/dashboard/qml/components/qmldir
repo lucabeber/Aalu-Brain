@@ -15,3 +15,5 @@ MapPanel 1.0 MapPanel.qml
 EnergyPanel 1.0 EnergyPanel.qml
 FlowTile 1.0 FlowTile.qml
 DockBar 1.0 DockBar.qml
+SearchPanel 1.0 SearchPanel.qml
+RouteBanner 1.0 RouteBanner.qml

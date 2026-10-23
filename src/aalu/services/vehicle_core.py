@@ -36,6 +36,7 @@ from aalu.core.modes import ModeEvent, ModeMachine, Transition, VehicleMode
 from aalu.core.state_store import StateStore
 from aalu.services.config import AppConfig, ConfigError
 from aalu.services.energy import EnergyBalance, EnergyConfig
+from aalu.services.navigation import NavigationController, NominatimGeocoder, OsrmRouter
 from aalu.video.service import default_socket_path
 
 log = logging.getLogger(__name__)
@@ -92,6 +93,7 @@ class VehicleCore:
         ))
         self.energy_view: dict[str, Any] = {}
 
+        self._fake_gnss: FakeGnss | None = None
         self.media: MediaController | None = None
         self.audio: AudioOutputController | None = None
         self.load_controller: LoadController | None = None
@@ -101,6 +103,15 @@ class VehicleCore:
             for source in adapter.sources:
                 self.store.register(source, simulated=adapter.simulated)
         self._update_energy()  # "unknown" until the battery monitor reports
+
+        ua = config.map.user_agent
+        self.navigation = NavigationController(
+            NominatimGeocoder(config.geocoder_url, ua),
+            OsrmRouter(config.router_url, ua),
+            # Simulation: the fake car drives the planned route.
+            on_route=self._fake_gnss.follow if self._fake_gnss else (lambda pts: None),
+        )
+        self.navigation.subscribe(lambda: self._emit({"navigation"}))
 
     # --- lifecycle -------------------------------------------------------
     def start(self, publish: Publish) -> None:
@@ -134,6 +145,8 @@ class VehicleCore:
         if reading.source == "loads":
             self._settle_requests()
             topics.add("loads")
+        if reading.source == "gnss":
+            self.navigation.update_position(self.position())
         if reading.source in ENERGY_SOURCES:
             self._update_energy()
             topics.add("energy")
@@ -177,6 +190,27 @@ class VehicleCore:
     # --- commands --------------------------------------------------------
     def loads_available(self) -> bool:
         return self.load_controller is not None and self.store.snapshot("loads").quality.is_live
+
+    # --- navigation ------------------------------------------------------
+    def position(self) -> tuple[float, float] | None:
+        """Current GNSS position, only from a live fix."""
+        snap = self.store.snapshot("gnss")
+        r = snap.reading
+        if (snap.quality.is_live and isinstance(r, GnssReading) and r.fix is not GnssFix.NO_FIX
+                and r.lat is not None and r.lon is not None):
+            return (r.lat, r.lon)
+        return None
+
+    def search_destination(self, query: str) -> bool:
+        """Typing a destination is refused while driving (roadmap: no complex input)."""
+        if self.drive_locked:
+            self._event("Destination search blocked while driving")
+            return False
+        self.navigation.search(query, self.position())
+        return True
+
+    def choose_destination(self, index: int) -> None:
+        self.navigation.choose(index, self.position())
 
     def protect_clip(self, long: bool = False) -> bool:
         """Dashcam "save clip": short = last/next minute, long = last 5 and next 10 minutes
@@ -269,7 +303,8 @@ class VehicleCore:
                 except (OSError, ValueError, KeyError) as exc:
                     log.warning("fake GNSS: route %s unusable (%s), driving a circle",
                                 c.gnss["route"], exc)
-            adapters.append(FakeGnss(sc, clock=self._clock, route=route))
+            self._fake_gnss = FakeGnss(sc, clock=self._clock, route=route)
+            adapters.append(self._fake_gnss)
         elif kind == "serial":
             adapters.append(NmeaSerialAdapter(c.gnss["port"], int(c.gnss.get("baudrate", 115200))))
         elif kind == "replay":

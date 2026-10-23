@@ -24,6 +24,12 @@ possible in a robust way.
   offline maps need a local source. Preferred path: OSM Scout Server (already planned for
   Pure Maps) serving tiles on localhost, set as `tile_url`; alternative: an MBTiles/vector
   renderer (MapLibre) inside the dashboard, to evaluate on the Pi for CPU/GPU cost.
-- Routing inside the dashboard map (e.g. Valhalla from OSM Scout Server) would allow
-  turn-by-turn in the split layouts later without changing the layout code.
+- **Destination search and routing in the dashboard** (added): `NavigationController` with
+  `Geocoder` / `Router` interfaces. Current implementations: Nominatim (search) and the OSRM
+  demo server (routing), both public and online, used within their policies (real
+  User-Agent, ≤ 1 search/s, no search-as-you-type). Offline replacement: OSM Scout Server
+  provides geocoding and Valhalla routing locally behind the same interfaces. Route
+  progress, off-route recalculation and arrival are computed locally from GNSS fixes.
+  Typing a destination is blocked while driving. Spoken turn-by-turn guidance is not
+  implemented; Pure Maps remains the option for it.
 - Night mode dims the light raster tiles; a dark tile style can be configured later.

@@ -40,6 +40,8 @@ Item {
             // "Custom URL Map" is the last type exposed by the osm plugin.
             map.activeMapType = map.supportedMapTypes[map.supportedMapTypes.length - 1]
             map.addMapItem(track)
+            map.addMapItem(routeLine)
+            map.addMapItem(destinationPin)
             map.addMapItem(vehicle)
         }
 
@@ -52,6 +54,22 @@ Item {
             id: track
             line.width: 6
             line.color: Qt.alpha(Theme.accent, 0.55)
+        }
+
+        // Planned route (drawn under the vehicle marker) and its destination.
+        MapPolyline {
+            id: routeLine
+            line.width: 9
+            line.color: Theme.night ? "#5aa9ff" : "#1a73e8"
+        }
+        MapQuickItem {
+            id: destinationPin
+            visible: root.destination !== null
+            coordinate: root.destination ? QtPositioning.coordinate(root.destination.lat, root.destination.lon)
+                                         : QtPositioning.coordinate()
+            anchorPoint.x: pinIcon.width / 2
+            anchorPoint.y: pinIcon.height
+            sourceItem: Icon { id: pinIcon; name: "pin"; width: 44; height: 52; color: Theme.crit }
         }
 
         MapQuickItem {
@@ -74,6 +92,35 @@ Item {
                 }
             }
         }
+    }
+
+    readonly property var nav: Vehicle.navigation || ({})
+    readonly property var destination: nav.route && nav.route.destination ? nav.route.destination : null
+    readonly property var routePath: Vehicle.navigationPath || []
+
+    // New route: draw it and show it whole, then resume following the car.
+    onRoutePathChanged: {
+        var coords = []
+        for (var i = 0; i < routePath.length; i++)
+            coords.push(QtPositioning.coordinate(routePath[i].lat, routePath[i].lon))
+        routeLine.path = coords
+        if (coords.length < 2) return
+        var minLat = 90, maxLat = -90, minLon = 180, maxLon = -180
+        for (var j = 0; j < coords.length; j++) {
+            minLat = Math.min(minLat, coords[j].latitude); maxLat = Math.max(maxLat, coords[j].latitude)
+            minLon = Math.min(minLon, coords[j].longitude); maxLon = Math.max(maxLon, coords[j].longitude)
+        }
+        root._programmatic = true
+        view.map.fitViewportToGeoShape(QtPositioning.rectangle(
+            QtPositioning.coordinate(maxLat, minLon), QtPositioning.coordinate(minLat, maxLon)), 80)
+        root._programmatic = false
+        root.follow = false
+        overviewTimer.restart()
+    }
+    Timer {
+        id: overviewTimer
+        interval: 6000
+        onTriggered: { view.map.zoomLevel = 16; root.follow = true }
     }
 
     function recenter() {

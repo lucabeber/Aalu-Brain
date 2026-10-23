@@ -87,6 +87,9 @@ class AppConfig:
     system: dict[str, Any] = field(default_factory=lambda: {"adapter": "real", "data_dir": "/"})
     battery_capacity_ah: float = 200.0
     navigation_command: list[str] = field(default_factory=list)
+    # Destination search and routing (public OSM services until OSM Scout Server runs locally).
+    geocoder_url: str = "https://nominatim.openstreetmap.org"
+    router_url: str = "https://router.project-osrm.org"
     camp_idle_timeout_s: float = 0.0  # 0 = never go to STANDBY automatically
     freshness: dict[str, Freshness] = field(default_factory=dict)
     alarm_rules: list[ThresholdRule] = field(default_factory=list)
@@ -98,6 +101,7 @@ class AppConfig:
     drive_window: WindowConfig = WindowConfig(fullscreen=True)
     camper_window: WindowConfig = WindowConfig(screen=1, fullscreen=True)
     night_mode: bool = True
+    virtual_keyboard: bool = False  # on-screen keyboard (touchscreen without keyboard)
     # Relative paths in the config (e.g. the fake GNSS route) are resolved against this.
     base_dir: Path = Path(".")
 
@@ -133,6 +137,10 @@ def parse_config(raw: dict[str, Any]) -> AppConfig:
             map=MapConfig(**raw.get("map", {})),
             video=_video(raw.get("video", {})),
             navigation_command=list(raw.get("navigation", {}).get("command", [])),
+            geocoder_url=str(raw.get("navigation", {}).get(
+                "geocoder_url", "https://nominatim.openstreetmap.org")),
+            router_url=str(raw.get("navigation", {}).get(
+                "router_url", "https://router.project-osrm.org")),
             camp_idle_timeout_s=float(raw.get("modes", {}).get("camp_idle_timeout_s", 0.0)),
             freshness={
                 name: Freshness(float(v["stale_after_s"]), float(v["disconnected_after_s"]))
@@ -151,6 +159,7 @@ def parse_config(raw: dict[str, Any]) -> AppConfig:
             drive_window=WindowConfig(**ui.get("drive", {})),
             camper_window=WindowConfig(**{"screen": 1, **ui.get("camper", {})}),
             night_mode=bool(ui.get("night_mode", True)),
+            virtual_keyboard=bool(ui.get("virtual_keyboard", False)),
         )
     except (KeyError, TypeError, ValueError) as exc:
         raise ConfigError(f"invalid configuration: {exc!r}") from exc

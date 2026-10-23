@@ -99,11 +99,57 @@ Rectangle {
 
                 // Important alarms float over the map (info notices stay in the camper view).
                 AlarmList {
-                    anchors { top: map.top; right: map.right; margins: Theme.gap }
+                    anchors { left: map.left; bottom: map.bottom; margins: Theme.gap; bottomMargin: 24 }
                     width: Math.min(420, map.width * 0.5)
                     showEmpty: false
                     maxItems: 2
                     severities: ["critical", "warning"]
+                }
+
+                // --- destination search and route ------------------------------
+                readonly property bool hasRoute: ((Vehicle.navigation || {}).route || {}).state !== undefined
+                                                 && Vehicle.navigation.route.state !== "none"
+                property bool searchOpen: false
+                // A search started anywhere (or from the command line) opens the panel.
+                readonly property string searchState: ((Vehicle.navigation || {}).search || {}).state || "idle"
+                onSearchStateChanged: if (searchState === "searching") searchOpen = true
+                // Once a destination is chosen, show the route instead of the list.
+                readonly property string routeState: ((Vehicle.navigation || {}).route || {}).state || "none"
+                onRouteStateChanged: if (routeState === "routing") searchOpen = false
+
+                Rectangle {
+                    id: searchPill
+                    visible: !content.searchOpen && !content.hasRoute
+                    anchors { top: map.top; horizontalCenter: map.horizontalCenter; topMargin: Theme.gap }
+                    width: Math.min(380, map.width - 2 * 200); height: 60
+                    radius: height / 2
+                    color: Qt.alpha(Theme.surface, 0.95)
+                    border.color: Theme.border
+                    Row {
+                        anchors.centerIn: parent
+                        spacing: 10
+                        Icon { name: "search"; width: 28; height: 28; color: Theme.text; anchors.verticalCenter: parent.verticalCenter }
+                        Text {
+                            text: "Search destination"
+                            color: Theme.textDim; font.pixelSize: Theme.fontM
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                    }
+                    MouseArea { anchors.fill: parent; onClicked: { Backend.userActivity(); content.searchOpen = true } }
+                }
+
+                RouteBanner {
+                    visible: !content.searchOpen && content.hasRoute
+                    anchors { top: map.top; horizontalCenter: map.horizontalCenter; topMargin: Theme.gap }
+                    width: Math.min(620, map.width - 2 * 200)
+                    onSearchRequested: content.searchOpen = true
+                }
+
+                SearchPanel {
+                    visible: content.searchOpen
+                    anchors { top: map.top; left: map.left; bottom: map.bottom; margins: Theme.gap }
+                    width: Math.min(560, map.width - 2 * Theme.gap - Theme.touchMin - Theme.gap)
+                    onCloseRequested: content.searchOpen = false
                 }
 
                 Loader {

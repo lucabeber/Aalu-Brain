@@ -190,3 +190,10 @@ def test_save_clip_windows_and_unavailable_service(core, clock):
     core.video = None
     assert core.protect_clip(long=True) is False
     assert "NOT saved" in core.events[0][1]
+
+
+def test_destination_typing_blocked_while_driving(core, clock):
+    step(core, clock)
+    assert core.drive_locked
+    assert core.search_destination("Riva") is False
+    assert "blocked while driving" in core.events[0][1]

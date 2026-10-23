@@ -53,6 +53,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
                    help="with --quit-after: save a PNG of each window before exiting")
     p.add_argument("--sim", action="append", default=[], metavar="KEY=BOOL",
                    help="initial simulation scenario, e.g. --sim gnss_fix=false (repeatable)")
+    p.add_argument("--search", metavar="QUERY",
+                   help="search a destination at startup (testing/demo; bypasses the drive lock)")
+    p.add_argument("--go", action="store_true", help="with --search: route to the first result")
+    p.add_argument("--keyboard", choices=("on", "off"),
+                   help="override [ui] virtual_keyboard (on-screen keyboard)")
     p.add_argument("--log-level", default=os.environ.get("AALU_LOG_LEVEL", "INFO"))
     return p.parse_args(argv)
 
@@ -114,6 +119,25 @@ def create_windows(engine: QQmlApplicationEngine, config: AppConfig, layout: str
     return windows
 
 
+def start_search(core: VehicleCore, query: str, go: bool) -> None:
+    """Search once a GNSS position exists (results are ranked around it)."""
+    nav = core.navigation
+
+    def chosen_once() -> None:
+        view = nav.view()
+        if go and view["search"]["state"] == "done" and view["route"]["state"] == "none":
+            core.choose_destination(0)
+
+    def try_search() -> None:
+        if core.position() is None:
+            QTimer.singleShot(500, try_search)
+            return
+        nav.subscribe(chosen_once)
+        nav.search(query, core.position())
+
+    QTimer.singleShot(500, try_search)
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(sys.argv[1:] if argv is None else argv)
     logging.basicConfig(level=args.log_level.upper(),
@@ -121,6 +145,10 @@ def main(argv: list[str] | None = None) -> int:
     os.environ.setdefault("QT_QUICK_CONTROLS_STYLE", "Basic")
 
     config = load_config(args.config, base_dir=ROOT)
+    if args.keyboard:
+        config = dataclasses.replace(config, virtual_keyboard=args.keyboard == "on")
+    if config.virtual_keyboard:
+        os.environ["QT_IM_MODULE"] = "qtvirtualkeyboard"  # must be set before QGuiApplication
     app = QGuiApplication(sys.argv[:1])
     app.setOrganizationName("aalu")  # QML Settings: ~/.config/aalu/aalu-dashboard.conf
     app.setApplicationName("aalu-dashboard")
@@ -150,6 +178,8 @@ def main(argv: list[str] | None = None) -> int:
     windows = create_windows(engine, config, args.layout or config.screen_layout, args.only,
                              args.view, args.page)
     backend.start()
+    if args.search:
+        start_search(core, args.search, args.go)
 
     # Clean exit on SIGTERM (systemd) and Ctrl+C. A timer lets Python see signals.
     for sig in (signal.SIGINT, signal.SIGTERM):

@@ -39,6 +39,10 @@ proxy = true              # fetch tiles via a local HTTP/1.1 proxy (avoids Qt HT
 # Turn-by-turn app started full screen from the dock. Empty = button disabled.
 command = []
 # command = ["flatpak", "run", "io.github.rinigus.PureMaps"]
+# Destination search and routing in the dashboard map. Public OSM services for now
+# (need Internet); point both at a local OSM Scout Server for offline use.
+geocoder_url = "https://nominatim.openstreetmap.org"
+router_url = "https://router.project-osrm.org"
 
 [modes]
 camp_idle_timeout_s = 0   # 0 = never enter STANDBY automatically
@@ -163,6 +167,7 @@ message = "Raspberry Pi temperature high"
 
 [ui]
 night_mode = true
+virtual_keyboard = false  # true: on-screen keyboard (also: --keyboard on)
 layout = "auto"           # auto | single | dual
 
 [ui.drive]                # also used for the single window

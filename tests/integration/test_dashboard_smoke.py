@@ -56,3 +56,7 @@ def test_drive_layouts_and_degraded_data(tmp_path, layout):
     run_dashboard(tmp_path, 1280, 720, "--layout", "single",
                   "--sim", "gnss_fix=false", "--sim", "victron_connected=false",
                   "--sim", "phone_connected=false", "--sim", "reverse=true")
+
+
+def test_on_screen_keyboard_loads_without_warnings(tmp_path):
+    run_dashboard(tmp_path, 1280, 720, "--layout", "single", "--keyboard", "on")
