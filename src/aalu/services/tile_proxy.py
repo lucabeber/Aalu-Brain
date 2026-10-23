@@ -67,6 +67,14 @@ class _ConnectionPool:
         raise AssertionError("unreachable")
 
 
+class _Server(ThreadingHTTPServer):
+    daemon_threads = True
+
+    def handle_error(self, request: object, client_address: object) -> None:
+        # Default prints a traceback to stderr; keep unexpected errors in the app log instead.
+        log.exception("tile proxy: request from %s failed", client_address)
+
+
 class TileProxy:
     def __init__(self, upstream: str, user_agent: str, pool_size: int = 4,
                  timeout_s: float = 10.0) -> None:
@@ -85,6 +93,14 @@ class TileProxy:
 
         class Handler(BaseHTTPRequestHandler):
             protocol_version = "HTTP/1.1"
+
+            def handle(self) -> None:
+                try:
+                    super().handle()
+                except ConnectionError:
+                    # Normal: Qt cancels tiles that scrolled out of view while panning or
+                    # zooming, closing the connection before the reply is written.
+                    log.debug("tile proxy: client closed the connection")
 
             def do_GET(self) -> None:  # noqa: N802 (http.server API)
                 if not _TILE_PATH.match(self.path):
@@ -110,8 +126,7 @@ class TileProxy:
             def log_message(self, format: str, *args: object) -> None:  # noqa: A002
                 log.debug("tile proxy: " + format, *args)
 
-        self._server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-        self._server.daemon_threads = True
+        self._server = _Server(("127.0.0.1", 0), Handler)
         self._thread = threading.Thread(target=self._server.serve_forever,
                                         name="tile-proxy", daemon=True)
         self._thread.start()
