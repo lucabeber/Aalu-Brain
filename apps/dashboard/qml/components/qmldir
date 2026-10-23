@@ -17,3 +17,8 @@ FlowTile 1.0 FlowTile.qml
 DockBar 1.0 DockBar.qml
 SearchPanel 1.0 SearchPanel.qml
 RouteBanner 1.0 RouteBanner.qml
+WebMapPanel 1.0 WebMapPanel.qml
+ManeuverIcon 1.0 ManeuverIcon.qml
+ManeuverBanner 1.0 ManeuverBanner.qml
+NavPanel 1.0 NavPanel.qml
+PointMenu 1.0 PointMenu.qml

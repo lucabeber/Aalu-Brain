@@ -43,6 +43,11 @@ class MapConfig:
     attribution: str = "© OpenStreetMap contributors"
     # Fetch tiles through the local HTTP/1.1 proxy (works around Qt HTTP/2 tile drops).
     proxy: bool = True
+    # Offline map packs (scripts/build_map_pack.py) and the map engine that shows them.
+    maps_dir: str = "data/maps"
+    engine: str = "auto"  # auto (MapLibre when packs exist) | maplibre | qtlocation
+    # Use the online services (tiles, search, routing) where no pack covers the area.
+    online_fallback: bool = True
 
 
 @dataclass(frozen=True)
@@ -91,6 +96,8 @@ class AppConfig:
     geocoder_url: str = "https://nominatim.openstreetmap.org"
     router_url: str = "https://router.project-osrm.org"
     camp_idle_timeout_s: float = 0.0  # 0 = never go to STANDBY automatically
+    trips_dir: str = "data/trips"  # saved trips (one folder per trip)
+    gpx_dir: str = "data/gpx"  # GPX library: scanned recursively
     freshness: dict[str, Freshness] = field(default_factory=dict)
     alarm_rules: list[ThresholdRule] = field(default_factory=list)
     battery_reserve_soc_pct: float = 10.0
@@ -142,6 +149,8 @@ def parse_config(raw: dict[str, Any]) -> AppConfig:
             router_url=str(raw.get("navigation", {}).get(
                 "router_url", "https://router.project-osrm.org")),
             camp_idle_timeout_s=float(raw.get("modes", {}).get("camp_idle_timeout_s", 0.0)),
+            trips_dir=str(raw.get("navigation", {}).get("trips_dir", "data/trips")),
+            gpx_dir=str(raw.get("navigation", {}).get("gpx_dir", "data/gpx")),
             freshness={
                 name: Freshness(float(v["stale_after_s"]), float(v["disconnected_after_s"]))
                 for name, v in raw.get("freshness", {}).items()

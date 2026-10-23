@@ -33,6 +33,10 @@ reserve_soc_pct = 10      # "empty" for the time estimate
 tile_url = "https://tile.openstreetmap.org/"
 cache_size_mb = 500
 proxy = true              # fetch tiles via a local HTTP/1.1 proxy (avoids Qt HTTP/2 tile drops)
+# Offline map packs: scripts/build_map_pack.py <region> (map, routing, search for a region)
+maps_dir = "data/maps"
+engine = "auto"           # auto: offline vector map when packs exist | maplibre | qtlocation
+online_fallback = true    # online map/search/routing only where no pack covers the area
 # offline_dir = "/home/pi/maps/tiles"   # pre-rendered tiles, no network needed
 
 [navigation]
@@ -41,6 +45,8 @@ command = []
 # command = ["flatpak", "run", "io.github.rinigus.PureMaps"]
 # Destination search and routing in the dashboard map. Public OSM services for now
 # (need Internet); point both at a local OSM Scout Server for offline use.
+trips_dir = "data/trips"     # saved trips: one folder per trip (date, time, places)
+gpx_dir = "data/gpx"         # your GPX files (subfolders are scanned)
 geocoder_url = "https://nominatim.openstreetmap.org"
 router_url = "https://router.project-osrm.org"
 

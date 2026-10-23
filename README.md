@@ -21,12 +21,33 @@ moving map that follows the car, in three layouts — the choice is remembered:
 plus Camera (rear/front, opens automatically on reverse), Navigate (starts Pure Maps full
 screen, when configured) and Camper (single-screen mode).
 
-**Destination search**: tap *Search destination* on the map, type a place and pick a result
-(nearest places first). The route is drawn with remaining distance, time and arrival clock;
-it is recalculated if you leave it, and the simulated car drives it. Typing is disabled while
-the vehicle moves (switch *Ignition* off on the Simulation page to try it). Search and
-routing use public OpenStreetMap services for now, so they need Internet. On the Pi an
-on-screen keyboard appears (`[ui] virtual_keyboard`; on a PC try `--keyboard on`).
+**Offline maps**: build a map pack once at home, then map, search and routing work with
+no Internet ([ADR 0007](docs/decisions/0007-offline-maps-without-pure-maps.md)):
+
+```bash
+.venv/bin/pip install -e ".[maps]"        # routing (Valhalla), OSM reader, map file reader
+scripts/build_map_pack.py trentino-alto-adige    # ≈ 3 min and 500 MB; also: italy, alps, ...
+```
+
+Packs go to `data/maps/` (`[map] maps_dir`; on the Pi e.g. the SSD). With a pack the drive view
+shows the offline vector map (needs a GPU with WebGL2); without one it falls back to the
+online map.
+
+**Navigation** (tap *Where to?* on the map; offline with a map pack):
+- **Route**: *From* (current location by default, or a searched place) and *To*; or
+  long-press the map → *Go here* / *Set as start*. Options: no motorways / tolls / ferries /
+  unpaved. Turn-by-turn instructions, recalculation when you leave the route, arrival time.
+  A route from another start is a *planned* route: *Start* (from here) or *Save trip*.
+- **Trips**: every navigation is saved in `data/trips/<date>_<time>_<from>-<to>/` with the
+  planned route (`route.gpx`), the driven track (`track.gpx`) and the metadata (`trip.json`:
+  places, options, planned and driven distance/time, speeds, status). *Drive from here* or
+  *Show* reopens one.
+- **GPX**: your files in `data/gpx/` (subfolders too) are listed and searchable by name,
+  place or date. Loading one snaps it to the roads where it follows them (turn instructions)
+  and keeps the original track where it goes off-road (orange on the map, "follow the GPX
+  track" guidance); you are routed to its start and back to it if you leave it.
+- Typing is disabled while the vehicle moves (switch *Ignition* off on the Simulation page to
+  try it). On the Pi an on-screen keyboard appears (`[ui] virtual_keyboard`; PC: `--keyboard on`).
 
 **Camper view**: Energy, Water, Lights, Audio, Alarms, Diagnostics and Simulation pages.
 The Energy page shows the battery %, what the solar panels and the engine (alternator via
@@ -51,7 +72,7 @@ scripts/check_environment.sh    # what this machine has / lacks
 scripts/run_demo.sh             # creates .venv on first run, then starts
 ```
 
-Requirements: Python ≥ 3.11 and `python3-venv` (or [`uv`](https://docs.astral.sh/uv/));
+Requirements: Python ≥ 3.12 and `python3-venv` (or [`uv`](https://docs.astral.sh/uv/));
 GStreamer (`gstreamer1.0-tools` + good/bad/ugly plugins) for the dashcam. Without it the
 dashboard still runs and the dashcam shows "not running".
 The map needs Internet the first time an area is shown; viewed tiles are cached on disk.
@@ -79,6 +100,9 @@ it in *Screen Configuration*: the layout follows.
 | `--view camper` | start the single window on the camper view |
 | `--page dashcam` | camper page shown first |
 | `--search "Riva del Garda" [--go]` | search at startup (and route to the first result) |
+| `--gpx bondone-mixed.gpx [--go]` | load a GPX from the library (sample in `assets/sample-data/gpx`) |
+| `--panel route\|trips\|gpx` | open the navigation panel on a tab |
+| `--map-engine qtlocation` | use the online Qt map instead of the offline vector map |
 | `--keyboard on\|off` | on-screen keyboard |
 | `AALU_NO_VIDEO=1` | (environment) do not start the dashcam service |
 | `--only drive` / `--only camper` | open only one view |
@@ -99,7 +123,7 @@ unset PYTHONPATH                     # e.g. ROS on the path breaks pytest plugin
 .venv/bin/pytest                     # unit + simulated scenarios + QML smoke runs
 ```
 
-CI (`.github/workflows/ci.yml`) runs the same on Python 3.11 and 3.13 (Trixie's version).
+CI (`.github/workflows/ci.yml`) runs the same on Python 3.12 and 3.13 (Trixie's version).
 
 ## Layout
 

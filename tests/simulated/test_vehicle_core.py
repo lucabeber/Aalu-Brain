@@ -6,7 +6,7 @@ feeds the readings, with a manually advanced clock.
 
 import pytest
 
-from aalu.core.models import DataQuality
+from aalu.core.models import DataQuality, GnssFix, GnssReading
 from aalu.core.modes import VehicleMode
 from aalu.services.config import load_config
 from aalu.services.vehicle_core import LOAD_CONFIRM_TIMEOUT_S, VehicleCore
@@ -14,8 +14,14 @@ from conftest import ROOT
 
 
 @pytest.fixture
-def core(clock):
+def core(clock, tmp_path):
+    import dataclasses
+
     cfg = load_config(ROOT / "config" / "dev.toml")
+    # Isolated from this machine: no downloaded map packs, trips in a temp folder.
+    cfg = dataclasses.replace(
+        cfg, trips_dir=str(tmp_path / "trips"), gpx_dir=str(tmp_path / "gpx"),
+        map=dataclasses.replace(cfg.map, maps_dir=str(tmp_path / "maps")))
     return VehicleCore(cfg, clock=clock)
 
 
@@ -197,3 +203,44 @@ def test_destination_typing_blocked_while_driving(core, clock):
     assert core.drive_locked
     assert core.search_destination("Riva") is False
     assert "blocked while driving" in core.events[0][1]
+
+
+def test_trip_recorded_from_start_to_arrival(core, clock, tmp_path):
+    from aalu.services.navigation import Place, PlannedRoute
+
+    step(core, clock)
+    here = core.position()
+    end = (here[0] + 0.002, here[1])
+    route = PlannedRoute([here, end], 222.0, 30.0)
+    core.navigation.load_route(route, Place("Testplace", "", *end), None, here)
+    assert core.trips.recording
+    for lat in (here[0] + 0.0005, here[0] + 0.001, here[0] + 0.0015, end[0]):
+        core._fake_gnss.follow(None)  # keep the fake car from moving on its own
+        core.ingest(GnssReading(quality=DataQuality.SIMULATED, fix=GnssFix.FIX_3D,
+                                lat=lat, lon=here[1], speed_kmh=30.0))
+        clock.advance(11)
+    assert core.navigation.state == "arrived" and not core.trips.recording
+    (trip,) = core.trips_view()
+    assert trip["status"] == "completed" and trip["destination"]["name"] == "Testplace"
+    assert 150 < trip["driven"]["distance_m"] < 260
+    folder = tmp_path / "trips" / trip["id"]
+    assert (folder / "track.gpx").exists() and (folder / "route.gpx").exists()
+    assert trip["id"].endswith("Testplace")
+
+
+def test_planned_trip_saved_and_driven_again(core, clock):
+    from aalu.services.navigation import Place, PlannedRoute
+
+    step(core, clock)
+    here = core.position()
+    route = PlannedRoute([(46.0, 11.0), (46.01, 11.0)], 1112.0, 120.0)
+    core.navigation.load_route(route, Place("Far", "", 46.01, 11.0), Place("Away", "", 46.0, 11.0),
+                               here)
+    assert core.navigation.state == "preview" and not core.trips.recording
+    assert core.save_planned_trip()
+    (trip,) = core.trips_view()
+    assert trip["status"] == "planned" and trip["start"]["name"] == "Away"
+    calls = []
+    core.navigation._plan = lambda start: calls.append(start)  # no routing engine in this test
+    assert core.drive_trip(trip["id"])
+    assert calls == [here] and core.navigation.destination.name == "Far"

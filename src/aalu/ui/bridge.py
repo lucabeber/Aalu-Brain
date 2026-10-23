@@ -76,6 +76,11 @@ class Backend(QObject):
                 {"id": a.id, "severity": a.severity.value, "message": a.message}
                 for a in core.alarms.active
             ])
+        if "trips" in topics:
+            self.vehicle.insert("trips", core.trips_view())
+        if "gpx" in topics:
+            self.vehicle.insert("gpxLibrary", core.gpx_view)
+            self.vehicle.insert("gpxLoad", core.gpx_load_view)
         if "navigation" in topics:
             nav = core.navigation.view()
             if nav["route"]["route_id"] != self._route_id:
@@ -98,7 +103,7 @@ class Backend(QObject):
         self.vehicle.insert("mapConfig", dataclasses.asdict(core.config.map))
         self._on_topics(set(core.store.sources())
                         | {"mode", "alarms", "events", "diagnostics", "loads", "energy",
-                           "navigation"})
+                           "navigation", "trips", "gpx"})
 
     # --- theme -----------------------------------------------------------
     def _get_night(self) -> bool:
@@ -115,6 +120,30 @@ class Backend(QObject):
         return self._core.config.virtual_keyboard
 
     virtualKeyboard = Property(bool, _get_keyboard, constant=True)
+
+    # --- map view ---------------------------------------------------------
+    def set_map_server(self, url: str, engine: str) -> None:
+        """Called by main.py before QML loads."""
+        self._map_url, self._map_engine = url, engine
+
+    def _get_map_url(self) -> str:
+        return getattr(self, "_map_url", "")
+
+    def _get_map_engine(self) -> str:
+        return getattr(self, "_map_engine", "qtlocation")
+
+    def _get_map_fallback(self) -> bool:
+        return self._core.config.map.online_fallback
+
+    initial_panel = ""
+
+    def _get_initial_panel(self) -> str:
+        return self.initial_panel
+
+    initialPanel = Property(str, _get_initial_panel, constant=True)
+    mapUrl = Property(str, _get_map_url, constant=True)
+    mapEngine = Property(str, _get_map_engine, constant=True)
+    mapOnlineFallback = Property(bool, _get_map_fallback, constant=True)
 
     # --- commands from QML -----------------------------------------------
     @Slot()
@@ -167,6 +196,45 @@ class Backend(QObject):
     @Slot()
     def cancelRoute(self) -> None:
         self._core.navigation.cancel()
+
+    @Slot(str, str)
+    def searchPlace(self, query: str, target: str) -> None:
+        self._core.search_place(query, target)
+
+    @Slot(str, float, float)
+    def pickPoint(self, target: str, lat: float, lon: float) -> None:
+        self._core.pick_point(target, lat, lon)
+
+    @Slot()
+    def startFromCurrentLocation(self) -> None:
+        nav = self._core.navigation
+        nav.set_point("start", None, self._core.position())
+
+    @Slot(str, bool)
+    def setRouteOption(self, key: str, value: bool) -> None:
+        nav = self._core.navigation
+        opts = dataclasses.replace(nav.options, **{key: bool(value)})
+        nav.set_options(opts, self._core.position())
+
+    @Slot()
+    def startNavigation(self) -> None:
+        self._core.navigation.start_navigation(self._core.position())
+
+    @Slot()
+    def savePlannedTrip(self) -> None:
+        self._core.save_planned_trip()
+
+    @Slot(str, bool)
+    def driveTrip(self, trip_id: str, from_here: bool) -> None:
+        self._core.drive_trip(trip_id, from_here)
+
+    @Slot(str)
+    def searchGpx(self, query: str) -> None:
+        self._core.search_gpx(query)
+
+    @Slot(str, bool)
+    def loadGpx(self, gpx_id: str, preview: bool) -> None:
+        self._core.load_gpx(gpx_id, preview)
 
     @Slot()
     def clearSearch(self) -> None:

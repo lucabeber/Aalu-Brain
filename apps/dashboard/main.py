@@ -22,6 +22,8 @@ from PySide6.QtGui import QGuiApplication, QScreen, QWindow  # noqa: E402
 from PySide6.QtQml import QQmlApplicationEngine, QQmlComponent  # noqa: E402
 from PySide6.QtQuick import QQuickWindow  # noqa: E402
 
+from aalu.maps.pack import find_packs  # noqa: E402
+from aalu.maps.server import MapServer  # noqa: E402
 from aalu.services.config import (  # noqa: E402
     SCREEN_LAYOUTS,
     AppConfig,
@@ -56,6 +58,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     p.add_argument("--search", metavar="QUERY",
                    help="search a destination at startup (testing/demo; bypasses the drive lock)")
     p.add_argument("--go", action="store_true", help="with --search: route to the first result")
+    p.add_argument("--panel", choices=("route", "trips", "gpx"),
+                   help="open the navigation panel on this tab at startup (testing/demo)")
+    p.add_argument("--gpx", metavar="FILE", help="load a GPX file of the library at startup "
+                   "(path relative to the GPX folder; testing/demo)")
+    p.add_argument("--map-engine", choices=("auto", "maplibre", "qtlocation"),
+                   help="override [map] engine")
     p.add_argument("--keyboard", choices=("on", "off"),
                    help="override [ui] virtual_keyboard (on-screen keyboard)")
     p.add_argument("--log-level", default=os.environ.get("AALU_LOG_LEVEL", "INFO"))
@@ -119,6 +127,22 @@ def create_windows(engine: QQmlApplicationEngine, config: AppConfig, layout: str
     return windows
 
 
+def resolve_map_engine(config: AppConfig, override: str | None) -> str:
+    """MapLibre (offline vector packs) when packs exist and QtWebEngine is available."""
+    engine = override or config.map.engine
+    if engine == "qtlocation":
+        return engine
+    try:
+        import PySide6.QtWebEngineQuick  # noqa: F401
+    except ImportError:
+        log.warning("QtWebEngine not available: using the Qt Location map")
+        return "qtlocation"
+    if engine == "maplibre":
+        return engine
+    packs = find_packs(config.resolve(config.map.maps_dir))
+    return "maplibre" if any(p.has("map") for p in packs) else "qtlocation"
+
+
 def start_search(core: VehicleCore, query: str, go: bool) -> None:
     """Search once a GNSS position exists (results are ranked around it)."""
     nav = core.navigation
@@ -144,11 +168,17 @@ def main(argv: list[str] | None = None) -> int:
                         format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     os.environ.setdefault("QT_QUICK_CONTROLS_STYLE", "Basic")
 
+    p_engine = args.map_engine
     config = load_config(args.config, base_dir=ROOT)
     if args.keyboard:
         config = dataclasses.replace(config, virtual_keyboard=args.keyboard == "on")
     if config.virtual_keyboard:
         os.environ["QT_IM_MODULE"] = "qtvirtualkeyboard"  # must be set before QGuiApplication
+    engine_name = resolve_map_engine(config, p_engine)
+    if engine_name == "maplibre":
+        # Must happen before the application object exists.
+        from PySide6.QtWebEngineQuick import QtWebEngineQuick
+        QtWebEngineQuick.initialize()
     app = QGuiApplication(sys.argv[:1])
     app.setOrganizationName("aalu")  # QML Settings: ~/.config/aalu/aalu-dashboard.conf
     app.setApplicationName("aalu-dashboard")
@@ -168,6 +198,15 @@ def main(argv: list[str] | None = None) -> int:
         key, _, value = item.partition("=")
         core.scenario.set(key, value.lower() in ("1", "true", "yes", "on"))
     backend = Backend(core)
+    backend.initial_panel = args.panel or ""
+    map_server: MapServer | None = None
+    if engine_name == "maplibre":
+        map_server = MapServer(
+            ROOT / "apps" / "dashboard" / "web", config.resolve(config.map.maps_dir),
+            core.map_packs,
+            "https://tile.openstreetmap.org/" if config.map.online_fallback else None,
+            config.map.user_agent)
+        backend.set_map_server(map_server.start() + "web/map.html", "maplibre")
     engine = QQmlApplicationEngine()
     engine.rootContext().setContextProperty("Vehicle", backend.vehicle)
     engine.rootContext().setContextProperty("Backend", backend)
@@ -180,6 +219,8 @@ def main(argv: list[str] | None = None) -> int:
     backend.start()
     if args.search:
         start_search(core, args.search, args.go)
+    if args.gpx:
+        QTimer.singleShot(1500, lambda: core.load_gpx(args.gpx, preview=not args.go))
 
     # Clean exit on SIGTERM (systemd) and Ctrl+C. A timer lets Python see signals.
     for sig in (signal.SIGINT, signal.SIGTERM):
@@ -203,6 +244,8 @@ def main(argv: list[str] | None = None) -> int:
     backend.stop()
     if proxy:
         proxy.stop()
+    if map_server:
+        map_server.stop()
     # Tear down QML before the context objects it references.
     for w in windows.values():
         shiboken6.delete(w)

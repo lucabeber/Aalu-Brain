@@ -67,16 +67,30 @@ Rectangle {
                 readonly property real sideW: Math.max(300, width * 0.25)
                 readonly property real sideH: Math.max(320, height * 0.25)
 
-                MapPanel {
+                // Offline vector map (MapLibre) when map packs are installed, else Qt Location.
+                Loader {
                     id: map
                     x: 0; y: 0
                     width: content.split && !root.portrait ? content.width - content.sideW - content.gap : content.width
                     height: content.split && root.portrait ? content.height - content.sideH - content.gap : content.height
+                    source: Backend.mapEngine === "maplibre" ? "../components/WebMapPanel.qml"
+                                                             : "../components/MapPanel.qml"
                 }
+                Connections {
+                    target: map.item
+                    ignoreUnknownSignals: true
+                    function onPointPicked(lat, lon) { content.picked = { lat: lat, lon: lon } }
+                }
+                property var picked: null
 
-                // Speed chip floating on the map.
-                Rectangle {
+                // --- overlays: next turn + speed (top-left), alarms (top-right) ----------
+                ManeuverBanner {
+                    id: maneuver
                     anchors { left: map.left; top: map.top; margins: Theme.gap }
+                    width: Math.min(460, map.width * 0.45)
+                }
+                Rectangle {
+                    anchors { left: map.left; top: maneuver.visible ? maneuver.bottom : map.top; margins: Theme.gap }
                     width: speedRow.implicitWidth + 28; height: 76
                     radius: Theme.radius
                     color: Qt.alpha(Theme.surface, 0.92)
@@ -96,32 +110,30 @@ Rectangle {
                         }
                     }
                 }
-
                 // Important alarms float over the map (info notices stay in the camper view).
                 AlarmList {
-                    anchors { left: map.left; bottom: map.bottom; margins: Theme.gap; bottomMargin: 24 }
-                    width: Math.min(420, map.width * 0.5)
+                    anchors { right: map.right; top: map.top; margins: Theme.gap }
+                    width: Math.min(400, map.width * 0.35)
                     showEmpty: false
                     maxItems: 2
                     severities: ["critical", "warning"]
                 }
 
-                // --- destination search and route ------------------------------
-                readonly property bool hasRoute: ((Vehicle.navigation || {}).route || {}).state !== undefined
-                                                 && Vehicle.navigation.route.state !== "none"
-                property bool searchOpen: false
-                // A search started anywhere (or from the command line) opens the panel.
-                readonly property string searchState: ((Vehicle.navigation || {}).search || {}).state || "idle"
-                onSearchStateChanged: if (searchState === "searching") searchOpen = true
-                // Once a destination is chosen, show the route instead of the list.
+                // --- navigation ------------------------------------------------------
                 readonly property string routeState: ((Vehicle.navigation || {}).route || {}).state || "none"
-                onRouteStateChanged: if (routeState === "routing") searchOpen = false
+                readonly property bool hasRoute: routeState !== "none"
+                property bool panelOpen: false
+                // A search started anywhere (or from the command line) opens the panel;
+                // once a route is being computed, the map is shown again.
+                readonly property string searchState: ((Vehicle.navigation || {}).search || {}).state || "idle"
+                onSearchStateChanged: if (searchState === "searching") panelOpen = true
+                onRouteStateChanged: if (routeState === "routing" || routeState === "active") panelOpen = false
 
                 Rectangle {
                     id: searchPill
-                    visible: !content.searchOpen && !content.hasRoute
+                    visible: !content.panelOpen && !content.hasRoute && content.picked === null
                     anchors { top: map.top; horizontalCenter: map.horizontalCenter; topMargin: Theme.gap }
-                    width: Math.min(380, map.width - 2 * 200); height: 60
+                    width: Math.min(340, map.width - 2 * 230); height: 60
                     radius: height / 2
                     color: Qt.alpha(Theme.surface, 0.95)
                     border.color: Theme.border
@@ -130,26 +142,38 @@ Rectangle {
                         spacing: 10
                         Icon { name: "search"; width: 28; height: 28; color: Theme.text; anchors.verticalCenter: parent.verticalCenter }
                         Text {
-                            text: "Search destination"
+                            text: "Where to?"
                             color: Theme.textDim; font.pixelSize: Theme.fontM
                             anchors.verticalCenter: parent.verticalCenter
                         }
                     }
-                    MouseArea { anchors.fill: parent; onClicked: { Backend.userActivity(); content.searchOpen = true } }
+                    MouseArea { anchors.fill: parent; onClicked: { Backend.userActivity(); content.panelOpen = true } }
+                }
+
+                PointMenu {
+                    point: content.picked
+                    anchors { top: map.top; horizontalCenter: map.horizontalCenter; topMargin: Theme.gap }
+                    onClosed: content.picked = null
                 }
 
                 RouteBanner {
-                    visible: !content.searchOpen && content.hasRoute
-                    anchors { top: map.top; horizontalCenter: map.horizontalCenter; topMargin: Theme.gap }
-                    width: Math.min(620, map.width - 2 * 200)
-                    onSearchRequested: content.searchOpen = true
+                    visible: !content.panelOpen && content.hasRoute
+                    anchors { bottom: map.bottom; horizontalCenter: map.horizontalCenter; bottomMargin: 28 }
+                    width: Math.min(640, map.width - 2 * (Theme.touchMin + 2 * Theme.gap))
+                    onSearchRequested: content.panelOpen = true
                 }
 
-                SearchPanel {
-                    visible: content.searchOpen
+                NavPanel {
+                    id: navPanel
+                    visible: content.panelOpen
+                    Component.onCompleted: if (Backend.initialPanel !== "") {
+                        tab = Backend.initialPanel
+                        content.panelOpen = true
+                        if (tab === "gpx") Backend.searchGpx("")
+                    }
                     anchors { top: map.top; left: map.left; bottom: map.bottom; margins: Theme.gap }
                     width: Math.min(560, map.width - 2 * Theme.gap - Theme.touchMin - Theme.gap)
-                    onCloseRequested: content.searchOpen = false
+                    onCloseRequested: content.panelOpen = false
                 }
 
                 Loader {

@@ -34,9 +34,23 @@ from aalu.core.alarms import AlarmEngine
 from aalu.core.models import GnssFix, GnssReading, Reading, VehicleInputsReading
 from aalu.core.modes import ModeEvent, ModeMachine, Transition, VehicleMode
 from aalu.core.state_store import StateStore
+from aalu.maps.hybrid import HybridTrack
+from aalu.maps.pack import find_packs
+from aalu.maps.places import LocalGeocoder
+from aalu.maps.routing import ValhallaRouter
 from aalu.services.config import AppConfig, ConfigError
 from aalu.services.energy import EnergyBalance, EnergyConfig
-from aalu.services.navigation import NavigationController, NominatimGeocoder, OsrmRouter
+from aalu.services.gpx_library import GpxLibrary
+from aalu.services.navigation import (
+    FallbackGeocoder,
+    FallbackRouter,
+    NavigationController,
+    NominatimGeocoder,
+    OsrmRouter,
+    Place,
+    RouteOptions,
+)
+from aalu.services.trips import TripStore
 from aalu.video.service import default_socket_path
 
 log = logging.getLogger(__name__)
@@ -105,13 +119,37 @@ class VehicleCore:
         self._update_energy()  # "unknown" until the battery monitor reports
 
         ua = config.map.user_agent
+        self.map_packs = find_packs(config.resolve(config.map.maps_dir))
+        geocoders: list = []
+        routers: list = []
+        self.offline_router: ValhallaRouter | None = None
+        local = LocalGeocoder(p.places_db for p in self.map_packs)
+        if self.map_packs:
+            if local.available:
+                geocoders.append(local)
+            self.offline_router = ValhallaRouter(self.map_packs)
+            if self.offline_router.available:
+                routers.append(self.offline_router)
+        if config.map.online_fallback:
+            geocoders.append(NominatimGeocoder(config.geocoder_url, ua))
+            routers.append(OsrmRouter(config.router_url, ua))
+        log.info("navigation: %d map pack(s): %s; search %s; routing %s",
+                 len(self.map_packs), [p.name for p in self.map_packs],
+                 [type(g).__name__ for g in geocoders], [type(r).__name__ for r in routers])
         self.navigation = NavigationController(
-            NominatimGeocoder(config.geocoder_url, ua),
-            OsrmRouter(config.router_url, ua),
+            FallbackGeocoder(geocoders),
+            FallbackRouter(routers),
             # Simulation: the fake car drives the planned route.
             on_route=self._fake_gnss.follow if self._fake_gnss else (lambda pts: None),
         )
-        self.navigation.subscribe(lambda: self._emit({"navigation"}))
+        self.navigation.subscribe(self._on_navigation)
+        self._nav_state = "none"
+        self._nav_destination: Place | None = None
+        self._local_geocoder = local if self.map_packs and local.available else None
+        self.trips = TripStore(config.resolve(config.trips_dir))
+        self.gpx = GpxLibrary(config.resolve(config.gpx_dir), self.place_name)
+        self.gpx_view: dict[str, Any] = {"state": "idle", "query": "", "results": [], "error": None}
+        self.gpx_load_view: dict[str, Any] = {"state": "idle", "name": None, "error": None}
 
     # --- lifecycle -------------------------------------------------------
     def start(self, publish: Publish) -> None:
@@ -121,6 +159,8 @@ class VehicleCore:
         self._event("System started")
 
     def stop(self) -> None:
+        if self.trips.recording:
+            self.trips.finish("stopped")  # clean shutdown; a power cut leaves "interrupted"
         for adapter in self.adapters:
             adapter.stop()
 
@@ -146,6 +186,9 @@ class VehicleCore:
             self._settle_requests()
             topics.add("loads")
         if reading.source == "gnss":
+            # Record first: arriving ends the trip, and the last point belongs to it.
+            if self.trips.recording and isinstance(reading, GnssReading) and self.position():
+                self.trips.add_point(reading.lat, reading.lon, reading.speed_kmh, reading.alt_m)
             self.navigation.update_position(self.position())
         if reading.source in ENERGY_SOURCES:
             self._update_energy()
@@ -211,6 +254,138 @@ class VehicleCore:
 
     def choose_destination(self, index: int) -> None:
         self.navigation.choose(index, self.position())
+
+    def search_place(self, query: str, target: str) -> bool:
+        """Search for the start or the destination field (blocked while driving)."""
+        if self.drive_locked:
+            self._event("Destination search blocked while driving")
+            return False
+        self.navigation.search(query, self.position(), target)
+        return True
+
+    def pick_point(self, target: str, lat: float, lon: float) -> None:
+        """Long press on the map: use that point as start or destination."""
+        name = self.place_name(lat, lon) or f"{lat:.5f}, {lon:.5f}"
+        place = Place(name, "Point on the map", lat, lon)
+        self.navigation.set_point(target, place, self.position())
+
+    def place_name(self, lat: float, lon: float) -> str | None:
+        return self._local_geocoder.reverse(lat, lon) if self._local_geocoder else None
+
+    # --- trips ------------------------------------------------------------
+    def _place_dict(self, place: Place | None) -> dict[str, Any]:
+        if place is not None:
+            return {"name": place.name, "lat": place.lat, "lon": place.lon}
+        pos = self.navigation.planned_from or self.position() or (0.0, 0.0)
+        return {"name": self.place_name(*pos) or "Current location", "lat": pos[0], "lon": pos[1],
+                "current_location": True}
+
+    def _on_navigation(self) -> None:
+        nav = self.navigation
+        state, dest, route = nav.state, nav.destination, nav.route
+        before, self._nav_state = self._nav_state, state
+        topics = {"navigation"}
+        if state == "active" and route is not None and before != "active":
+            same_trip = self.trips.recording and dest is self._nav_destination
+            if same_trip:
+                self.trips.update_route(route.points, route.distance_m, route.duration_s)
+            else:
+                self.trips.start(self._place_dict(nav.start_place), self._place_dict(dest),
+                                 nav.options.as_dict(), route.points, route.distance_m,
+                                 route.duration_s, source=nav.track_source)
+                if (pos := self.position()) is not None:
+                    self.trips.add_point(*pos, None)  # the track starts where the car is
+                topics.add("trips")
+            self._nav_destination = dest
+        elif state == "arrived" and self.trips.recording:
+            self.trips.finish("completed")
+            self._event(f"Arrived at {dest.name if dest else 'destination'}: trip saved")
+            topics.add("trips")
+        elif state in ("none", "preview") and self.trips.recording:
+            self.trips.finish("cancelled")
+            topics.add("trips")
+        self._emit(topics)
+
+    def save_planned_trip(self) -> bool:
+        nav, route = self.navigation, self.navigation.route
+        if route is None or nav.destination is None:
+            return False
+        self.trips.save_planned(self._place_dict(nav.start_place),
+                                self._place_dict(nav.destination), nav.options.as_dict(),
+                                route.points, route.distance_m, route.duration_s)
+        self._event(f"Trip saved: {nav.destination.name}")
+        self._emit({"trips"})
+        return True
+
+    def drive_trip(self, trip_id: str, from_here: bool = True) -> bool:
+        """Plan a saved trip again: to its destination (from here, or from its own start)."""
+        try:
+            meta = self.trips.load(trip_id)
+        except (OSError, ValueError, KeyError):
+            return False
+        d, s = meta["destination"], meta["start"]
+        nav = self.navigation
+        nav.options = RouteOptions(**{k: bool(v) for k, v in meta.get("options", {}).items()
+                                      if k in RouteOptions.__dataclass_fields__})
+        nav.start_place = (None if from_here or s.get("current_location")
+                           else Place(s["name"], "", s["lat"], s["lon"]))
+        nav.set_point("destination", Place(d["name"], "", d["lat"], d["lon"]), self.position())
+        return True
+
+    def trips_view(self) -> list[dict[str, Any]]:
+        return self.trips.list()[:100]
+
+    # --- GPX library ------------------------------------------------------
+    def _background(self, work: Callable[[], Any], done: Callable[[Any, str | None], None]
+                    ) -> None:
+        """Run ``work`` on the navigation worker thread, ``done`` back on this thread."""
+        nav = self.navigation
+
+        def job() -> None:
+            try:
+                result, error = work(), None
+            except Exception as exc:  # shown to the user
+                log.info("background task failed: %s", exc)
+                result, error = None, str(exc)
+            nav.post(lambda: done(result, error))
+
+        nav._executor.submit(job)
+
+    def search_gpx(self, query: str) -> None:
+        near = self.position()
+        self.gpx_view = {"state": "searching", "query": query, "results": [], "error": None}
+        self._emit({"gpx"})
+
+        def done(results: Any, error: str | None) -> None:
+            self.gpx_view = {"state": "error" if error else "done", "query": query,
+                             "results": results or [], "error": error}
+            self._emit({"gpx"})
+
+        self._background(lambda: (self.gpx.refresh(), self.gpx.search(query, near))[1], done)
+
+    def load_gpx(self, gpx_id: str, preview: bool = True) -> None:
+        """Match a GPX file to the roads (background) and show it as a route."""
+        self.gpx_load_view = {"state": "loading", "name": gpx_id, "error": None}
+        self._emit({"gpx"})
+
+        def work() -> tuple[Any, Place, str]:
+            data, points, path = self.gpx.load(gpx_id)
+            name = data.name or path.stem
+            track = HybridTrack(self.offline_router, points, name)
+            end = track.base.points[-1]
+            dest = Place(name, "GPX track", end[0], end[1], "gpx")
+            return track, dest, str(path)
+
+        def done(result: Any, error: str | None) -> None:
+            if error:
+                self.gpx_load_view = {"state": "error", "name": gpx_id, "error": error}
+            else:
+                track, dest, source = result
+                self.gpx_load_view = {"state": "idle", "name": track.name, "error": None}
+                self.navigation.follow_track(track, dest, source, self.position(), preview)
+            self._emit({"gpx"})
+
+        self._background(work, done)
 
     def protect_clip(self, long: bool = False) -> bool:
         """Dashcam "save clip": short = last/next minute, long = last 5 and next 10 minutes

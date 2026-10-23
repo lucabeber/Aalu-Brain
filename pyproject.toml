@@ -7,7 +7,7 @@ name = "aalu"
 version = "0.1.0"
 description = "AALU on-board computer: drive and camper dashboards for a Raspberry Pi 5"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"  # pyvalhalla wheels need 3.12+
 dependencies = [
     "PySide6==6.8.1",
 ]
@@ -15,6 +15,13 @@ dependencies = [
 [project.optional-dependencies]
 # Real serial GNSS (and later VE.Direct / MCU) on the Pi.
 serial = ["pyserial==3.5"]
+# Offline maps: routing + GPX map matching (Valhalla), map pack building (OSM data),
+# vector map file reading. All have Linux aarch64 wheels (or are pure Python).
+maps = [
+    "pyvalhalla==3.9.1",
+    "osmium==4.3.2",
+    "pmtiles==3.8.1",
+]
 dev = [
     "pytest==8.3.4",
     "ruff==0.8.4",
@@ -33,7 +40,7 @@ addopts = "-m 'not hardware'"
 
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+target-version = "py312"
 src = ["src", "apps", "tests"]
 
 [tool.ruff.lint]

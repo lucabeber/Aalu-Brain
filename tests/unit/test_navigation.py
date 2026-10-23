@@ -71,8 +71,9 @@ class FakeRouter:
     def __init__(self, points):
         self.points, self.calls = points, []
 
-    def route(self, start, end):
+    def route(self, start, end, options=None):
         self.calls.append(start)
+        self.options = options
         return PlannedRoute(self.points, Polyline(self.points).length, 600.0)
 
 
@@ -159,3 +160,52 @@ def test_polyline_locate_projects_onto_segments():
     along, off, idx = line.locate((46.015, 11.001))
     assert along == pytest.approx(haversine_m(LINE[0], (46.015, 11.0)), abs=3)
     assert off == pytest.approx(77, abs=3) and idx == 1
+
+
+def test_custom_start_gives_a_preview_that_is_not_followed():
+    from aalu.services.navigation import Place
+
+    nav, followed = controller()
+    nav.set_point("start", Place("Elsewhere", "", 46.0, 11.0), position=(45.0, 10.0))
+    nav.set_point("destination", Place("Dest", "", 46.02, 11.0), position=(45.0, 10.0))
+    assert nav.state == "preview" and followed == []
+    assert nav._router.calls[-1] == (46.0, 11.0)  # planned from the chosen start
+    nav.update_position((45.0, 10.0))  # far away: no off-route recalculation in preview
+    assert len(nav._router.calls) == 1
+
+    nav.start_navigation((46.0, 11.0))
+    assert nav.state == "active" and nav.view()["start"] is None and followed[-1] == LINE
+
+
+def test_search_target_start_fills_the_start_field():
+    nav, _ = controller()
+    nav.search("dest", (46.0, 11.0), target="start")
+    nav.choose(0, (46.0, 11.0))
+    assert nav.view()["start"]["name"] == "Dest" and nav.state == "none"
+
+
+def test_changing_options_replans():
+    from aalu.services.navigation import RouteOptions
+
+    nav, _ = controller()
+    nav.search("dest", (46.0, 11.0))
+    nav.choose(0, (46.0, 11.0))
+    nav.set_options(RouteOptions(avoid_tolls=True), (46.0, 11.0))
+    assert nav._router.options.avoid_tolls and len(nav._router.calls) == 2
+    assert nav.view()["options"]["avoid_tolls"] is True
+
+
+def test_next_maneuver_and_loading_a_saved_route():
+    from aalu.services.navigation import Maneuver, Place
+
+    route = PlannedRoute(LINE, Polyline(LINE).length, 600.0, [
+        Maneuver("Drive north.", "start", 0, 1112),
+        Maneuver("Turn left onto Via X.", "left", 1, 1112, "Via X"),
+        Maneuver("You have arrived.", "destination", 2, 0)])
+    nav, followed = controller()
+    nav.load_route(route, Place("Dest", "", 46.02, 11.0), None, (46.0, 11.0))
+    assert nav.state == "active" and followed[-1] == LINE
+    assert nav.view()["route"]["next"]["kind"] == "left"
+    nav.update_position((46.005, 11.0))
+    nxt = nav.view()["route"]["next"]
+    assert nxt["instruction"] == "Turn left onto Via X." and 540 < nxt["distance_m"] < 580

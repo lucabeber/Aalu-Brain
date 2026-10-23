@@ -19,10 +19,10 @@ if grep -q "Raspberry Pi" /proc/device-tree/model 2>/dev/null; then
 fi
 
 echo "Python"
-if command -v python3 >/dev/null && python3 -c 'import sys; sys.exit(sys.version_info < (3, 11))'; then
+if command -v python3 >/dev/null && python3 -c 'import sys; sys.exit(sys.version_info < (3, 12))'; then
     ok "python3 $(python3 -c 'import platform; print(platform.python_version())')"
 else
-    bad "python3 >= 3.11 required"
+    bad "python3 >= 3.12 required"
 fi
 [[ -n "${PYTHONPATH:-}" ]] && warn "PYTHONPATH is set ($PYTHONPATH); scripts unset it"
 if [[ -x .venv/bin/python ]]; then

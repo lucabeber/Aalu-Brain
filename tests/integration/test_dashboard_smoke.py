@@ -19,6 +19,10 @@ def run_dashboard(tmp_path, width, height, *args):
     cfg = base.replace("width = 1280", f"width = {width}")
     for h in ("height = 720", "height = 800"):
         cfg = cfg.replace(h, f"height = {height}")
+    # Do not depend on map packs downloaded on this machine.
+    cfg = cfg.replace('maps_dir = "data/maps"', f'maps_dir = "{tmp_path / "maps"}"')
+    cfg = cfg.replace('trips_dir = "data/trips"', f'trips_dir = "{tmp_path / "trips"}"')
+    cfg = cfg.replace('gpx_dir = "data/gpx"', f'gpx_dir = "{tmp_path / "gpx"}"')
     path = tmp_path / "cfg.toml"
     path.write_text(cfg)
     env = {**os.environ, "QT_QPA_PLATFORM": "offscreen",
@@ -60,3 +64,15 @@ def test_drive_layouts_and_degraded_data(tmp_path, layout):
 
 def test_on_screen_keyboard_loads_without_warnings(tmp_path):
     run_dashboard(tmp_path, 1280, 720, "--layout", "single", "--keyboard", "on")
+
+
+@pytest.mark.skipif(bool(os.environ.get("CI")), reason="headless Chromium has no WebGL on CI")
+def test_offline_map_engine_starts(tmp_path):
+    pytest.importorskip("PySide6.QtWebEngineQuick")
+    out = run_dashboard(tmp_path, 1280, 720, "--layout", "single", "--map-engine", "maplibre")
+    assert "map server http://127.0.0.1:" in out
+
+
+@pytest.mark.parametrize("panel", ["route", "trips", "gpx"])
+def test_navigation_panel_tabs_load_without_warnings(tmp_path, panel):
+    run_dashboard(tmp_path, 1280, 720, "--layout", "single", "--panel", panel)

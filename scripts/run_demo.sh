@@ -10,9 +10,9 @@ unset PYTHONPATH
 if [[ ! -x .venv/bin/python ]]; then
     echo "Creating .venv ..."
     if python3 -m venv .venv 2>/dev/null; then
-        .venv/bin/pip install -q -e ".[dev]"
+        .venv/bin/pip install -q -e ".[dev,maps]"
     elif command -v uv >/dev/null; then
-        rm -rf .venv && uv venv -q .venv && uv pip install -q --python .venv/bin/python -e ".[dev]"
+        rm -rf .venv && uv venv -q .venv && uv pip install -q --python .venv/bin/python -e ".[dev,maps]"
     else
         echo "Need python3-venv (sudo apt install python3-venv) or uv." >&2
         exit 1

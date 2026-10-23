@@ -8,6 +8,11 @@ Rectangle {
     signal searchRequested()
     readonly property var route: (Vehicle.navigation || {}).route || ({})
     readonly property string state_: route.state || "none"
+    readonly property var track: (Vehicle.navigation || {}).track || null
+    function trackInfo() {
+        if (!track) return ""
+        return " · " + km(track.road_m) + " road, " + km(track.offroad_m) + " off-road"
+    }
 
     visible: state_ !== "none"
     implicitHeight: 76
@@ -47,11 +52,18 @@ Rectangle {
                 color: root.state_ === "error" || root.route.off_route ? Theme.warn : Theme.textDim
                 text: root.state_ === "routing" ? "Calculating route…"
                     : root.state_ === "error" ? (root.route.error || "Route not available")
-                    : root.state_ === "arrived" ? "You have reached your destination"
-                    : root.route.off_route ? "Off route: recalculating…"
+                    : root.state_ === "arrived" ? "You have reached your destination · trip saved"
+                    : root.route.off_route ? (root.track ? "Off the track: guiding you back…" : "Off route: recalculating…")
+                    : root.state_ === "preview" ? "Planned · " + root.km(root.route.distance_m) + " · "
+                                                  + Fmt.duration(root.route.duration_s / 60) + root.trackInfo()
                     : root.km(root.route.remaining_m) + " · " + Fmt.duration(root.route.remaining_s / 60)
-                      + " · arrive " + root.arrival(root.route.remaining_s)
+                      + " · arrive " + root.arrival(root.route.remaining_s) + root.trackInfo()
             }
+        }
+        TouchButton {
+            visible: root.state_ === "preview"
+            text: "Start"; icon: "nav"; highlighted: true
+            onClicked: Backend.startNavigation()
         }
         TouchButton { icon: "search"; onClicked: root.searchRequested() }
         TouchButton { icon: "close"; onClicked: Backend.cancelRoute() }

@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AALU map</title>
+<link rel="stylesheet" href="vendor/maplibre-gl.css">
+<style>
+  html, body, #map { margin: 0; height: 100%; width: 100%; background: #0b0e12; }
+  .vehicle { width: 46px; height: 46px; border-radius: 50%; background: rgba(79,163,224,.25);
+             border: 3px solid #fff; box-sizing: border-box; display: flex;
+             align-items: center; justify-content: center; }
+  .vehicle svg { width: 28px; height: 28px; }
+  .pin { width: 34px; height: 44px; }
+  .maplibregl-ctrl-attrib { font: 11px sans-serif; }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<script src="vendor/basemaps.js"></script>
+<script type="module" src="map.js"></script>
+</body>
+</html>
