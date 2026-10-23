@@ -1,0 +1,17 @@
+singleton Theme 1.0 Theme.qml
+Card 1.0 Card.qml
+QualityBadge 1.0 QualityBadge.qml
+MetricTile 1.0 MetricTile.qml
+StatusIndicator 1.0 StatusIndicator.qml
+StatusBar 1.0 StatusBar.qml
+MediaMiniPlayer 1.0 MediaMiniPlayer.qml
+LevelBar 1.0 LevelBar.qml
+TouchButton 1.0 TouchButton.qml
+Icon 1.0 Icon.qml
+AlarmList 1.0 AlarmList.qml
+ReverseOverlay 1.0 ReverseOverlay.qml
+ToggleTile 1.0 ToggleTile.qml
+MapPanel 1.0 MapPanel.qml
+EnergyPanel 1.0 EnergyPanel.qml
+FlowTile 1.0 FlowTile.qml
+DockBar 1.0 DockBar.qml

@@ -1,0 +1,139 @@
+# Raspberry Pi 5 (Raspberry Pi OS Desktop). Copy to config/pi.toml and adjust.
+# Simulated data on real screens: windows go full screen on whatever HDMI touchscreen
+# is connected and adapt to its resolution and orientation.
+
+# --- adapters: every device is simulated (labelled SIMULATED in the UI) ---------
+[adapters.gnss]
+adapter = "fake"          # fake | serial | replay | none
+route = "assets/sample-data/route_trento.json"   # road loop the fake car drives
+# adapter = "serial"; port = "/dev/ttyUSB0"; baudrate = 115200
+# adapter = "replay"; file = "tests/fixtures/nmea/drive_fix.nmea"
+
+[adapters.victron]        # house battery monitor, solar MPPT, engine DC-DC charger
+adapter = "fake"
+
+[adapters.media]
+adapter = "fake"
+
+[adapters.mcu]            # vehicle inputs (ACC, reverse), tanks, switched loads
+adapter = "fake"
+
+[adapters.system]         # real: CPU temperature, load, RAM, disk
+adapter = "real"
+data_dir = "/"
+
+[simulation]
+time_scale = 1            # >1 makes the simulated battery charge/discharge faster
+
+[battery]
+capacity_ah = 300               # LiFePO4
+reserve_soc_pct = 10      # "empty" for the time estimate
+
+[map]
+# Raster tiles; areas already viewed are cached on disk and work offline.
+tile_url = "https://tile.openstreetmap.org/"
+cache_size_mb = 500
+# offline_dir = "/home/pi/maps/tiles"   # pre-rendered tiles, no network needed
+
+[navigation]
+# Turn-by-turn app started full screen from the dock. Empty = button disabled.
+command = []
+# command = ["flatpak", "run", "io.github.rinigus.PureMaps"]
+
+[modes]
+camp_idle_timeout_s = 0   # 0 = never enter STANDBY automatically
+
+# --- freshness: age after which data is stale / disconnected ------------------
+[freshness.gnss]
+stale_after_s = 3
+disconnected_after_s = 10
+
+[freshness.house_battery]
+stale_after_s = 5
+disconnected_after_s = 20
+
+[freshness.vehicle_inputs]
+stale_after_s = 1.5
+disconnected_after_s = 5
+
+# Commands are refused as soon as the I/O controller stops confirming output states.
+[freshness.loads]
+stale_after_s = 1.5
+disconnected_after_s = 5
+
+[freshness.system]
+stale_after_s = 15
+disconnected_after_s = 60
+
+# --- alarms (threshold + hysteresis) ------------------------------------------
+[[alarms]]
+id = "battery.soc_low"
+source = "house_battery"
+field = "soc_pct"
+direction = "below"
+set_at = 20
+clear_at = 25
+severity = "warning"
+message = "House battery below 20 %"
+
+[[alarms]]
+id = "battery.soc_critical"
+source = "house_battery"
+field = "soc_pct"
+direction = "below"
+set_at = 10
+clear_at = 15
+severity = "critical"
+message = "House battery critical: reduce consumption"
+
+[[alarms]]
+id = "battery.voltage_low"
+source = "house_battery"
+field = "voltage_v"
+direction = "below"
+set_at = 12.0
+clear_at = 12.4
+severity = "warning"
+message = "House battery voltage low"
+
+[[alarms]]
+id = "water.fresh_low"
+source = "fresh_water"
+field = "level_pct"
+direction = "below"
+set_at = 15
+clear_at = 20
+severity = "info"
+message = "Fresh water running low"
+
+[[alarms]]
+id = "water.grey_full"
+source = "grey_water"
+field = "level_pct"
+direction = "above"
+set_at = 85
+clear_at = 75
+severity = "warning"
+message = "Grey water tank almost full"
+
+[[alarms]]
+id = "system.cpu_hot"
+source = "system"
+field = "cpu_temp_c"
+direction = "above"
+set_at = 80
+clear_at = 72
+severity = "warning"
+message = "Raspberry Pi temperature high"
+
+[ui]
+night_mode = true
+layout = "auto"           # auto: one screen -> single window, two screens -> drive + camper
+
+[ui.drive]                # also used for the single window
+screen = 0                # HDMI-A-1 (port next to the USB-C power)
+fullscreen = true
+
+[ui.camper]
+screen = 1                # HDMI-A-2
+fullscreen = true

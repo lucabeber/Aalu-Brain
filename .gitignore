@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+build/
+dist/
+# Local machine configuration (copied from config/pi.toml.example)
+config/pi.toml
+# Runtime data: recordings, databases, logs
+data/
+*.sqlite
+*.log
