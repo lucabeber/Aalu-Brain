@@ -101,6 +101,6 @@ from the dock.
 
 `apps/video/main.py` runs `VideoService`: one `CameraRecorder` per camera supervising a
 `gst-launch-1.0` pipeline that writes 60 s MKV segments into `incoming/`; finished segments
-move to dated folders, a housekeeping thread enforces the 24 h retention and the free-space
+move to dated folders, a housekeeping thread enforces the 5 h retention and the free-space
 floor, and "Save clip" moves the surrounding segments to `protected/`. The dashboard reads
 its status over a UNIX socket (`VideoServiceAdapter`, source `video`).

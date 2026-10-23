@@ -21,21 +21,24 @@
   <root>/<camera>/noclock/...                     no valid wall clock (no RTC battery)
   <root>/protected/<camera>/...                   "Save clip": never auto-deleted
   ```
-- **Retention: 24 h.** Segments whose end is older than `retention_h` are deleted; if free
+- **Retention: 5 h.** Segments whose end is older than `retention_h` are deleted; if free
   space is still below `min_free_pct`, the oldest go first. Protected clips are never
   deleted automatically; when they exceed `protected_max_gb`, new "Save clip" requests are
   refused (and reported) instead.
-- **Save clip** keeps `protect_before_s` (60 s) before and `protect_after_s` (60 s) after
-  the request, for all cameras. Triggered from the dock or the Dashcam page; later also from
+- **Two save buttons** (dock and Dashcam page), for all cameras: **Save clip** keeps
+  `protect_before_s` / `protect_after_s` (1 min before, 1 min after); **Save 15 min** keeps
+  `long_protect_before_s` / `long_protect_after_s` (5 min before, 10 min after). While a
+  save window is still open, the UI shows the remaining time. Retention must be longer than
+  the longest "before" window (checked when the config is loaded). Later also triggered by
   an IMU shock detection.
 - **Control:** UNIX socket in `$XDG_RUNTIME_DIR/aalu/video.sock` (mode 600), JSON lines
   `status` / `protect`. The dashboard polls it as the `video` source; if the service is
   down the REC indicator goes grey like any disconnected device.
 
 ## Sizing
-Two cameras at 4 Mbit/s + audio ≈ 3.6 GB/h. One day of continuous recording ≈ 86 GB; in
-practice the car records only while the Pi is on. A 256 GB SSD leaves room for the system,
-maps and protected clips; size it when cameras and bitrates are chosen.
+Two cameras at 4 Mbit/s + audio ≈ 3.6 GB/h, so 5 hours ≈ 18 GB plus up to 20 GB of saved
+clips. A 128 GB SSD leaves ample room for the system and offline maps; size it when
+cameras and bitrates are chosen.
 
 ## Open
 Live preview in the dashboard (the service will publish a low-latency local stream; latency

@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
+import "../js/Fmt.js" as Fmt
 
 // Android Auto-style dock: drive layouts, cameras, navigation app and
 // (single-screen mode) the switch to the camper view. Vertical on landscape
@@ -29,12 +30,20 @@ Rectangle {
         DockButton { icon: "music"; label: "Music"; checked: root.layout === "media"; onClicked: root.layoutSelected("media") }
         DockButton { icon: "battery"; label: "Energy"; checked: root.layout === "energy"; onClicked: root.layoutSelected("energy") }
         DockButton { icon: "camera"; label: "Camera"; onClicked: root.cameraRequested() }
+        // Dashcam: quick clip (last/next minute) and long clip (last 5 + next 10 minutes).
+        // While a clip is still being extended, both show the remaining time.
         DockButton {
             readonly property var v: Vehicle.video || ({})
-            icon: "rec"; label: v.protecting ? "Saving…" : "Save clip"
+            icon: "rec"; label: v.protecting ? Fmt.saving(v) : "Save clip"
             checked: v.protecting === true
             active: v.recording === true
             onClicked: Backend.protectClip()
+        }
+        DockButton {
+            readonly property var v: Vehicle.video || ({})
+            icon: "rec"; label: "Save 15 min"
+            active: v.recording === true
+            onClicked: Backend.protectLongClip()
         }
         DockButton {
             icon: "nav"; label: "Navigate"
@@ -60,6 +69,10 @@ Rectangle {
         signal clicked()
         Layout.preferredWidth: 88
         Layout.preferredHeight: 80
+        // Shrink on short screens instead of overflowing the dock.
+        Layout.fillHeight: root.vertical
+        Layout.minimumHeight: 60
+        Layout.maximumHeight: 80
         Layout.alignment: Qt.AlignCenter
         radius: Theme.radius
         opacity: active ? 1 : 0.4

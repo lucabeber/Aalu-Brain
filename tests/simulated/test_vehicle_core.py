@@ -173,3 +173,20 @@ def test_energy_view_without_victron_has_no_numbers(core, clock):
     e = core.energy_view
     assert e["soc_pct"] is None and e["consumption_w"] is None and e["minutes"] is None
     assert e["state"] == "unknown" and e["quality"] == "disconnected"
+
+
+def test_save_clip_windows_and_unavailable_service(core, clock):
+    calls = []
+
+    class FakeVideo:
+        def protect(self, before_s=None, after_s=None):
+            calls.append((before_s, after_s))
+            return True
+
+    core.video = FakeVideo()
+    assert core.protect_clip() and core.protect_clip(long=True)
+    assert calls == [(60, 60), (300, 600)]
+    assert "last 5 min + next 10 min" in core.events[0][1]
+    core.video = None
+    assert core.protect_clip(long=True) is False
+    assert "NOT saved" in core.events[0][1]

@@ -144,6 +144,10 @@ class Backend(QObject):
     def protectClip(self) -> None:
         self._core.protect_clip()
 
+    @Slot()
+    def protectLongClip(self) -> None:
+        self._core.protect_clip(long=True)
+
     @Slot(str, bool)
     def setLoad(self, output: str, on: bool) -> None:
         self._core.request_load(output, on)

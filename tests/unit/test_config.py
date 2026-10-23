@@ -39,3 +39,11 @@ def test_relative_paths_resolve_against_base_dir(tmp_path):
     cfg_file.write_text('[adapters.gnss]\nadapter = "fake"\nroute = "r.json"\n')
     cfg = load_config(cfg_file, base_dir=ROOT)
     assert cfg.resolve("r.json") == ROOT / "r.json"
+
+
+def test_dashcam_defaults_and_window_validation():
+    cfg = load_config(ROOT / "config" / "dev.toml")
+    assert cfg.video.retention_h == 5
+    assert (cfg.video.long_protect_before_s, cfg.video.long_protect_after_s) == (300, 600)
+    with pytest.raises(ConfigError):  # a save must not reach back beyond what is kept
+        parse_config({"video": {"retention_h": 0.05, "long_protect_before_s": 300}})

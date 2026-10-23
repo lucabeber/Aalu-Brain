@@ -138,3 +138,19 @@ def test_real_gstreamer_test_source_records_playable_mkv_with_audio(short_tmp):
         out = subprocess.run(["gst-discoverer-1.0", str(seg)], capture_output=True,
                              text=True, timeout=20).stdout
         assert "H.264" in out and "Opus" in out
+
+
+def test_long_save_window_and_remaining_time(short_tmp):
+    svc = make_service(short_tmp)
+    svc.start()
+    try:
+        assert wait_for(lambda: svc.status()["segments"] >= 2)
+        reply = request(svc.socket_path, "protect", before_s=300, after_s=600)
+        assert reply["ok"] and reply["protected"] >= 2  # everything from the last 5 min
+        st = svc.status()
+        assert st["protecting"] is True and 595 <= st["protect_remaining_s"] <= 600
+        assert request(svc.socket_path, "protect", before_s=-1)["ok"] is False
+        assert request(svc.socket_path, "protect", after_s=99999)["ok"] is False
+        assert request(svc.socket_path, "protect", after_s="10")["ok"] is False
+    finally:
+        svc.stop()

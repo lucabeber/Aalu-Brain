@@ -63,11 +63,13 @@ class VideoConfig:
     enabled: bool = True
     root_dir: str = "data/dashcam"
     segment_s: int = 60
-    retention_h: float = 24.0  # normal segments older than this are deleted
+    retention_h: float = 5.0  # normal segments older than this are deleted
     min_free_pct: float = 10.0  # also delete the oldest segments below this free space
     protected_max_gb: float = 20.0  # protected clips are never deleted; beyond this, no new ones
-    protect_before_s: int = 60  # a "save clip" keeps this much before ...
+    protect_before_s: int = 60  # "Save clip" keeps this much before ...
     protect_after_s: int = 60  # ... and after the request
+    long_protect_before_s: int = 300  # "Save 15 min": the last 5 minutes ...
+    long_protect_after_s: int = 600  # ... and the next 10
     socket: str = ""  # "" = $XDG_RUNTIME_DIR/aalu/video.sock
     cameras: tuple[CameraConfig, ...] = ()
 
@@ -171,4 +173,9 @@ def _video(raw: dict[str, Any]) -> VideoConfig:
     if sum(c.audio for c in cams) > 1:
         raise ValueError("video.cameras: only one camera can record the microphone")
     rest = {k: v for k, v in raw.items() if k != "cameras"}
-    return VideoConfig(**rest, cameras=cams)
+    video = VideoConfig(**rest, cameras=cams)
+    longest_before = max(video.protect_before_s, video.long_protect_before_s)
+    if video.retention_h * 3600 <= longest_before + video.segment_s:
+        # The segments a save reaches back to must still exist when it is requested.
+        raise ValueError("video.retention_h must be longer than the protect windows")
+    return video

@@ -37,13 +37,14 @@ class VideoServiceAdapter(PolledAdapter):
         fields = {k: st.get(k) for k in (
             "recording", "disk_free_gb", "disk_free_pct", "used_gb", "segments",
             "oldest_age_h", "retention_h", "protected_segments", "protected_gb",
-            "protected_max_gb", "protecting")}
+            "protected_max_gb", "protecting", "protect_remaining_s")}
         return VideoReading(quality=quality, cameras=st.get("cameras", []), **fields)
 
     # VideoController
-    def protect(self) -> bool:
+    def protect(self, before_s: int | None = None, after_s: int | None = None) -> bool:
+        args = {k: v for k, v in (("before_s", before_s), ("after_s", after_s)) if v is not None}
         try:
-            return bool(request(self._socket, "protect").get("ok"))
+            return bool(request(self._socket, "protect", **args).get("ok"))
         except OSError:
             log.warning("save clip: video service not reachable")
             return False

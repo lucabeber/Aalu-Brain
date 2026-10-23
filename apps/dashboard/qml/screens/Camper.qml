@@ -351,7 +351,7 @@ Rectangle {
                         title: "Dashcam"
                         info: parent.v
                         Layout.fillWidth: true
-                        Layout.preferredHeight: 220
+                        Layout.preferredHeight: 320
                         GridLayout {
                             anchors { left: parent.left; right: parent.right; top: parent.top }
                             columns: 3
@@ -363,7 +363,7 @@ Rectangle {
                                 value: parent.v.recording === true ? "Yes" : parent.v.recording === false ? "No" : Fmt.DASH
                                 valueColor: parent.v.recording === true ? Theme.crit : Theme.text
                             }
-                            MetricTile { label: "Kept"; value: Fmt.num(parent.v.oldest_age_h, 1); unit: "h of " + Fmt.num(parent.v.retention_h) + " h" }
+                            MetricTile { label: "Kept"; value: Fmt.num(parent.v.oldest_age_h, 1); unit: "h of " + Fmt.num(parent.v.retention_h, 0) + " h" }
                             MetricTile { label: "Recordings"; value: Fmt.num(parent.v.used_gb, 1); unit: "GB" }
                             MetricTile { label: "Free space"; value: Fmt.num(parent.v.disk_free_gb); unit: "GB" }
                             MetricTile {
@@ -371,12 +371,30 @@ Rectangle {
                                 value: Fmt.num(parent.v.protected_segments)
                                 unit: Fmt.num(parent.v.protected_gb, 1) + " / " + Fmt.num(parent.v.protected_max_gb) + " GB"
                             }
-                            TouchButton {
-                                text: parent.v.protecting ? "Saving…" : "Save clip"
-                                icon: "rec"
-                                highlighted: parent.v.protecting === true
-                                active: parent.v.recording === true
-                                onClicked: Backend.protectClip()
+                            ColumnLayout {
+                                spacing: Theme.gap / 2
+                                readonly property var v: Vehicle.video || ({})
+                                TouchButton {
+                                    Layout.fillWidth: true
+                                    text: "Save clip (−1 / +1 min)"
+                                    icon: "rec"
+                                    active: parent.v.recording === true
+                                    onClicked: Backend.protectClip()
+                                }
+                                TouchButton {
+                                    Layout.fillWidth: true
+                                    text: "Save 15 min (−5 / +10 min)"
+                                    icon: "rec"
+                                    active: parent.v.recording === true
+                                    onClicked: Backend.protectLongClip()
+                                }
+                                Text {
+                                    visible: parent.v.protecting === true
+                                    text: Fmt.saving(parent.v) + " more"
+                                    color: Theme.crit
+                                    font.pixelSize: Theme.fontS
+                                    font.bold: true
+                                }
                             }
                         }
                     }

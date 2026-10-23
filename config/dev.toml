@@ -48,11 +48,13 @@ camp_idle_timeout_s = 0   # 0 = never enter STANDBY automatically
 enabled = true
 root_dir = "data/dashcam"   # TBD: SSD mount point
 segment_s = 60
-retention_h = 24          # keep one day of recordings
+retention_h = 5           # keep the last 5 hours of recordings
 min_free_pct = 10         # and never fill the disk beyond this
 protected_max_gb = 20     # "Save clip" segments are never auto-deleted
-protect_before_s = 60
-protect_after_s = 60
+protect_before_s = 60     # "Save clip": last minute ...
+protect_after_s = 60      # ... and the next one
+long_protect_before_s = 300   # "Save 15 min": last 5 minutes ...
+long_protect_after_s = 600    # ... and the next 10
 
 [[video.cameras]]
 name = "front"

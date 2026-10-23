@@ -27,8 +27,9 @@ DC-DC) put in, what is being consumed, the net sum, and how long until full (net
 or until the reserve level (net negative).
 
 **Dashcam**: a separate recording service (started by `run_demo.sh`) records every camera
-with sound from the cabin microphone into 1-minute MKV files and keeps **24 hours**;
-"Save clip" (dock or Dashcam page) keeps the minute before and after forever. With
+with sound from the cabin microphone into 1-minute MKV files and keeps the last **5 hours**.
+Two buttons (dock and Dashcam page) save footage that is never deleted automatically:
+**Save clip** = last minute + next minute, **Save 15 min** = last 5 minutes + next 10. With
 simulated cameras it records a GStreamer test picture. Files are in `data/dashcam/` on the
 PC (`~/aalu-data/dashcam` on the Pi); see [ADR 0006](docs/decisions/0006-dashcam-storage.md).
 

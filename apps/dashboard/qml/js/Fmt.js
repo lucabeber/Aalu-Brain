@@ -22,6 +22,11 @@ function power(w) {
     return Math.abs(w) >= 1000 ? (w / 1000).toFixed(1) + " kW" : Math.round(w) + " W"
 }
 
+// Countdown while a saved clip is still being extended, e.g. "Saving 9:41".
+function saving(v) {
+    return v && v.protecting ? "Saving " + mmss((v.protect_remaining_s || 0) * 1000) : ""
+}
+
 function mmss(ms) {
     if (ms == null) return "--:--"
     var t = Math.floor(ms / 1000)

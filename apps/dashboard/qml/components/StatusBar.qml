@@ -78,7 +78,7 @@ Rectangle {
         StatusIndicator {
             // Dashcam service status: red dot while recording, grey if the service is down.
             readonly property var v: Vehicle.video || ({})
-            label: v.recording === true ? (v.protecting ? "REC ● saving" : "REC") : "REC —"
+            label: v.recording === true ? (v.protecting ? "REC · " + Fmt.saving(v) : "REC") : "REC —"
             quality: v.quality || "disconnected"
             tint: v.recording === true && (v.quality === "valid" || v.quality === "simulated")
                   ? Theme.crit : Theme.qualityColor(v.quality || "disconnected")

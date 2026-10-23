@@ -6,6 +6,7 @@ object per line:
 
     {"cmd": "status"}   -> {"ok": true, "status": {...}}
     {"cmd": "protect"}  -> {"ok": true, "protected": <n segments so far>}
+    {"cmd": "protect", "before_s": 300, "after_s": 600}   custom window
 """
 
 from __future__ import annotations
@@ -28,6 +29,7 @@ from aalu.video.segments import Segment, SegmentStore
 log = logging.getLogger(__name__)
 
 HOUSEKEEPING_S = 10.0
+MAX_WINDOW_S = 3600
 
 
 def default_socket_path() -> Path:
@@ -86,16 +88,21 @@ class VideoService:
         self.socket_path.unlink(missing_ok=True)
 
     # --- protection ("save clip") ----------------------------------------
-    def protect(self) -> int:
-        """Keep the last ``protect_before_s`` and the next ``protect_after_s`` seconds."""
+    def protect(self, before_s: int | None = None, after_s: int | None = None) -> int:
+        """Keep the last ``before_s`` and the next ``after_s`` seconds of every camera
+        (defaults: ``protect_before_s`` / ``protect_after_s``)."""
+        before = self.config.protect_before_s if before_s is None else before_s
+        after = self.config.protect_after_s if after_s is None else after_s
+        if not (0 <= before <= MAX_WINDOW_S and 0 <= after <= MAX_WINDOW_S):
+            raise ValueError(f"protect window must be 0..{MAX_WINDOW_S} s")
         now = self._wall()
         limit = self.config.protected_max_gb * 1e9
         if self.store.protected_bytes() >= limit:
             log.warning("protect refused: protected clips exceed %.0f GB",
                         self.config.protected_max_gb)
             return -1
-        window = _ProtectWindow(now - self.config.protect_before_s,
-                                now + self.config.protect_after_s)
+        window = _ProtectWindow(now - before, now + after)
+        log.info("save clip: %d s before, %d s after", before, after)
         with self._lock:
             self._windows.append(window)
             for seg in self.store.segments():
@@ -119,7 +126,7 @@ class VideoService:
         normal = self.store.segments()
         protected = self.store.segments(protected=True)
         with self._lock:
-            protecting = any(w.end > self._wall() for w in self._windows)
+            remaining = max((w.end - self._wall() for w in self._windows), default=0.0)
         return {
             "recording": any(r.state == "recording" for r in self.recorders),
             "cameras": [r.status() for r in self.recorders],
@@ -133,7 +140,8 @@ class VideoService:
             "protected_segments": len(protected),
             "protected_gb": round(sum(s.size for s in protected) / 1e9, 2),
             "protected_max_gb": self.config.protected_max_gb,
-            "protecting": protecting,
+            "protecting": remaining > 0,
+            "protect_remaining_s": max(0, round(remaining)),
         }
 
     # --- internals ----------------------------------------------------------
@@ -151,15 +159,17 @@ class VideoService:
             def handle(self) -> None:
                 for raw in self.rfile:
                     try:
-                        cmd = json.loads(raw).get("cmd")
+                        msg = json.loads(raw)
+                        cmd = msg.get("cmd")
                         if cmd == "status":
                             reply: dict[str, Any] = {"ok": True, "status": service.status()}
                         elif cmd == "protect":
-                            n = service.protect()
+                            n = service.protect(_opt_int(msg, "before_s"),
+                                                _opt_int(msg, "after_s"))
                             reply = {"ok": n >= 0, "protected": n}
                         else:
                             reply = {"ok": False, "error": f"unknown command {cmd!r}"}
-                    except (ValueError, AttributeError) as exc:
+                    except (ValueError, TypeError, AttributeError) as exc:
                         reply = {"ok": False, "error": str(exc)}
                     self.wfile.write((json.dumps(reply) + "\n").encode())
 
@@ -172,14 +182,24 @@ class VideoService:
                          daemon=True).start()
 
 
-def request(socket_path: Path, cmd: str, timeout: float = 1.0) -> dict[str, Any]:
+def _opt_int(msg: dict[str, Any], key: str) -> int | None:
+    value = msg.get(key)
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise TypeError(f"{key} must be an integer number of seconds")
+    return value
+
+
+def request(socket_path: Path, cmd: str, timeout: float = 1.0,
+            **args: Any) -> dict[str, Any]:
     """Client side: one command, one reply. Raises OSError if the service is not running."""
     import socket
 
     with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
         sock.settimeout(timeout)
         sock.connect(str(socket_path))
-        sock.sendall((json.dumps({"cmd": cmd}) + "\n").encode())
+        sock.sendall((json.dumps({"cmd": cmd, **args}) + "\n").encode())
         data = b""
         while not data.endswith(b"\n"):
             chunk = sock.recv(65536)

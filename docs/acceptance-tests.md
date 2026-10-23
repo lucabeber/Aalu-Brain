@@ -15,7 +15,7 @@ Automated (A) tests run in CI; manual (M) tests are run and recorded on the benc
 | AT-NAV-01 | M | Pure Maps + OSM Scout Server on Pi, Wi-Fi off | route computed and displayed on the test route | G4 |
 | AT-BT-01 | M | pair 2 different phones, play, pause, next, prev 20× | commands work; reconnect after phone BT off/on | G5 |
 | AT-EN-01 | M | compare battery card with VictronConnect | values match within the device resolution | G7 |
-| AT-VID-01 | A | `pytest tests/integration/test_video_service.py tests/unit/test_video_segments.py` | segments finalized, 24 h retention, protected never deleted, crash restart | G6 |
+| AT-VID-01 | A | `pytest tests/integration/test_video_service.py tests/unit/test_video_segments.py` | segments finalized, 5 h retention, both save windows, protected never deleted, crash restart | G6 |
 | AT-VID-02 | M | real cameras, 4 h recording, random clips | all segments play; no gaps > 1 s between segments | G6 |
 | AT-VID-03 | M | unplug one camera for 1 min | other camera keeps recording; unplugged one resumes | G6 |
 | AT-VID-04 | M | cut power while recording | earlier segments intact; last one playable up to a few s before the cut | G6/G9 |

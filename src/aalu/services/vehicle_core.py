@@ -178,10 +178,16 @@ class VehicleCore:
     def loads_available(self) -> bool:
         return self.load_controller is not None and self.store.snapshot("loads").quality.is_live
 
-    def protect_clip(self) -> bool:
-        """Dashcam "save clip": keep the last and next minute of every camera."""
-        ok = self.video is not None and self.video.protect()
-        self._event("Clip saved" if ok else "Clip NOT saved: dashcam service not available")
+    def protect_clip(self, long: bool = False) -> bool:
+        """Dashcam "save clip": short = last/next minute, long = last 5 and next 10 minutes
+        (both configurable in [video])."""
+        v = self.config.video
+        before, after = ((v.long_protect_before_s, v.long_protect_after_s) if long
+                         else (v.protect_before_s, v.protect_after_s))
+        ok = self.video is not None and self.video.protect(before, after)
+        what = f"last {before // 60} min + next {after // 60} min"
+        self._event(f"Clip saved ({what})" if ok
+                    else "Clip NOT saved: dashcam service not available")
         return ok
 
     def request_load(self, output: str, on: bool) -> bool:

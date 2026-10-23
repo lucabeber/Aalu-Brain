@@ -202,3 +202,4 @@ class VideoReading(Reading):
     protected_gb: float | None = None
     protected_max_gb: float | None = None
     protecting: bool | None = None
+    protect_remaining_s: int | None = None  # seconds still being added to the saved clip

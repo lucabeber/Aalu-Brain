@@ -13,7 +13,7 @@ Derived from the roadmap (§2, §7, §11). IDs match the roadmap. Status: **draf
 | A-02 | Play/pause/next/previous, metadata when exposed | AT-BT-* | fake only |
 | E-01 | House battery SOC/V/A; solar and engine (DC-DC) charging; consumption; net; time to full (net > 0) or to reserve SOC (net < 0) | AT-EN-* | done (simulated) |
 | UI-S | Adapts to the attached HDMI touchscreen: full screen, any resolution and orientation; one screen = one window with Drive/Camper switch, two screens = one view each | AT-UI-* | done (offscreen tests; verify on Pi) |
-| V-02 | Dashcam: continuous recording of every camera with cabin audio, 1-min MKV segments, 24 h retention, "Save clip" kept until deleted, independent of the dashboard | AT-VID-* | done (simulated cameras) |
+| V-02 | Dashcam: continuous recording of every camera with cabin audio, 1-min MKV segments, 5 h retention, "Save clip" (−1/+1 min) and "Save 15 min" (−5/+10 min) kept until deleted, independent of the dashboard | AT-VID-* | done (simulated cameras) |
 | P-01 | ACC handling, boot and shutdown | AT-PWR-* | mode machine done; hardware TBD |
 
 ## Behaviour on failure (roadmap §7), all implemented in simulation
