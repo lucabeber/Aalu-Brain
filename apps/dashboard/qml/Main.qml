@@ -9,6 +9,7 @@ import "screens"
 Window {
     id: win
     required property string screenName
+    property string camperPage: "energy"
     title: screenName === "camper" ? "AALU Camper" : "AALU"
     color: Theme.bg
     visible: false   // shown by main.py after the screen is assigned
@@ -49,6 +50,7 @@ Window {
                 active: win.screenName !== "drive"
                 sourceComponent: Component {
                     Camper {
+                        initialPage: win.camperPage
                         canSwitchView: win.screenName === "single"
                         onSwitchView: win.view = "drive"
                     }

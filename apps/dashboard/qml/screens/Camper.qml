@@ -26,11 +26,13 @@ Rectangle {
         { key: "water", label: "Water" },
         { key: "lights", label: "Lights" },
         { key: "audio", label: "Audio" },
+        { key: "dashcam", label: "Dashcam" },
         { key: "alarms", label: "Alarms" },
         { key: "diag", label: "Diagnostics" },
         { key: "sim", label: "Simulation" },
     ]
-    property int current: 0
+    property string initialPage: "energy"
+    property int current: Math.max(0, pages.findIndex(p => p.key === initialPage))
 
     function loadState(name) { return root.loads.outputs ? root.loads.outputs[name] : null }
 
@@ -65,6 +67,9 @@ Rectangle {
                     TouchButton {
                         visible: root.canSwitchView
                         Layout.fillWidth: true
+                        Layout.fillHeight: !root.portrait
+                        Layout.minimumHeight: 48
+                        Layout.maximumHeight: Theme.touchMin
                         text: "Drive"
                         icon: "car"
                         onClicked: root.switchView()
@@ -75,6 +80,10 @@ Rectangle {
                             required property int index
                             required property var modelData
                             Layout.fillWidth: true
+                            // Shrink to fit short screens instead of overflowing the rail.
+                            Layout.fillHeight: !root.portrait
+                            Layout.minimumHeight: 48
+                            Layout.maximumHeight: Theme.touchMin
                             visible: modelData.key !== "sim" || Vehicle.simulated === true
                             text: modelData.label + (modelData.key === "alarms" && (Vehicle.alarms || []).length
                                                      ? " (" + Vehicle.alarms.length + ")" : "")
@@ -330,6 +339,84 @@ Rectangle {
                                 }
                             }
                         }
+                    }
+                    Item { Layout.fillHeight: true }
+                }
+
+                // --- dashcam --------------------------------------------------
+                ColumnLayout {
+                    spacing: Theme.gap
+                    readonly property var v: Vehicle.video || ({})
+                    Card {
+                        title: "Dashcam"
+                        info: parent.v
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 220
+                        GridLayout {
+                            anchors { left: parent.left; right: parent.right; top: parent.top }
+                            columns: 3
+                            columnSpacing: Theme.gap * 2
+                            rowSpacing: Theme.gap
+                            readonly property var v: Vehicle.video || ({})
+                            MetricTile {
+                                label: "Recording"
+                                value: parent.v.recording === true ? "Yes" : parent.v.recording === false ? "No" : Fmt.DASH
+                                valueColor: parent.v.recording === true ? Theme.crit : Theme.text
+                            }
+                            MetricTile { label: "Kept"; value: Fmt.num(parent.v.oldest_age_h, 1); unit: "h of " + Fmt.num(parent.v.retention_h) + " h" }
+                            MetricTile { label: "Recordings"; value: Fmt.num(parent.v.used_gb, 1); unit: "GB" }
+                            MetricTile { label: "Free space"; value: Fmt.num(parent.v.disk_free_gb); unit: "GB" }
+                            MetricTile {
+                                label: "Saved clips"
+                                value: Fmt.num(parent.v.protected_segments)
+                                unit: Fmt.num(parent.v.protected_gb, 1) + " / " + Fmt.num(parent.v.protected_max_gb) + " GB"
+                            }
+                            TouchButton {
+                                text: parent.v.protecting ? "Saving…" : "Save clip"
+                                icon: "rec"
+                                highlighted: parent.v.protecting === true
+                                active: parent.v.recording === true
+                                onClicked: Backend.protectClip()
+                            }
+                        }
+                    }
+                    Repeater {
+                        model: parent.v.cameras || []
+                        delegate: Rectangle {
+                            required property var modelData
+                            Layout.fillWidth: true
+                            implicitHeight: 64
+                            radius: Theme.radius
+                            color: Theme.surface
+                            border.color: modelData.state === "recording" ? Theme.border : Theme.warn
+                            RowLayout {
+                                anchors { fill: parent; margins: Theme.gap }
+                                StatusIndicator {
+                                    label: modelData.name + (modelData.audio ? " · video + audio" : " · video")
+                                    tint: modelData.state === "recording" ? Theme.crit : Theme.warn
+                                }
+                                QualityBadge { simulated: modelData.simulated; quality: "valid" }
+                                Item { Layout.fillWidth: true }
+                                Text {
+                                    text: modelData.state === "recording" ? "recording"
+                                          : modelData.state + (modelData.last_error ? ": " + modelData.last_error : "")
+                                    color: modelData.state === "recording" ? Theme.textDim : Theme.warn
+                                    font.pixelSize: Theme.fontS
+                                    elide: Text.ElideRight
+                                    Layout.maximumWidth: 520
+                                }
+                            }
+                        }
+                    }
+                    Text {
+                        Layout.fillWidth: true
+                        wrapMode: Text.Wrap
+                        color: Theme.textDim
+                        font.pixelSize: 13
+                        text: (Vehicle.video || {}).retention_h == null
+                              ? "Dashcam service not running: nothing is being recorded."
+                              : "Recordings older than " + Fmt.num(Vehicle.video.retention_h) + " h are deleted automatically. "
+                                + "Saved clips are kept until you delete them. The cabin microphone is recorded: tell your passengers."
                     }
                     Item { Layout.fillHeight: true }
                 }

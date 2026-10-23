@@ -140,6 +140,10 @@ class Backend(QObject):
         if self._core.audio and not self._core.drive_locked:
             self._core.audio.set_eq_preset(name)
 
+    @Slot()
+    def protectClip(self) -> None:
+        self._core.protect_clip()
+
     @Slot(str, bool)
     def setLoad(self, output: str, on: bool) -> None:
         self._core.request_load(output, on)

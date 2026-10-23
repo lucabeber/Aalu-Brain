@@ -54,6 +54,19 @@ done
 [[ $found == 0 ]] && warn "none found"
 id -nG | grep -qw dialout && ok "user in group dialout" || warn "user not in group dialout (serial access)"
 
+echo "Dashcam (GStreamer)"
+if command -v gst-launch-1.0 >/dev/null; then
+    ok "$(gst-launch-1.0 --version | head -1)"
+    for el in splitmuxsink matroskamux h264parse opusenc v4l2src pulsesrc; do
+        gst-inspect-1.0 --exists "$el" && ok "element $el" || warn "element $el missing"
+    done
+    gst-inspect-1.0 --exists x264enc || gst-inspect-1.0 --exists openh264enc \
+        && ok "software H.264 encoder (simulated cameras)" \
+        || warn "no x264enc/openh264enc: simulated cameras cannot record"
+else
+    warn "gst-launch-1.0 missing: dashcam disabled (sudo apt install gstreamer1.0-tools ...)"
+fi
+
 echo "Bluetooth / audio"
 command -v bluetoothctl >/dev/null && ok "bluetoothctl" || warn "bluez not installed"
 command -v wpctl >/dev/null && ok "wpctl (PipeWire/WirePlumber)" || warn "wpctl not found"

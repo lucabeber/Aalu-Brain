@@ -46,6 +46,37 @@ class MapConfig:
 
 
 @dataclass(frozen=True)
+class CameraConfig:
+    name: str
+    source: str = "test"  # test (simulated) | v4l2-h264 (camera encodes H.264 itself)
+    device: str = "/dev/video0"
+    width: int = 1280
+    height: int = 720
+    fps: int = 30
+    bitrate_kbps: int = 4000  # used by the software encoder of the test source only
+    audio: bool = False  # record the cabin microphone into this camera's files
+    audio_source: str = "test"  # test | pulse (PipeWire/PulseAudio default microphone)
+
+
+@dataclass(frozen=True)
+class VideoConfig:
+    enabled: bool = True
+    root_dir: str = "data/dashcam"
+    segment_s: int = 60
+    retention_h: float = 24.0  # normal segments older than this are deleted
+    min_free_pct: float = 10.0  # also delete the oldest segments below this free space
+    protected_max_gb: float = 20.0  # protected clips are never deleted; beyond this, no new ones
+    protect_before_s: int = 60  # a "save clip" keeps this much before ...
+    protect_after_s: int = 60  # ... and after the request
+    socket: str = ""  # "" = $XDG_RUNTIME_DIR/aalu/video.sock
+    cameras: tuple[CameraConfig, ...] = ()
+
+    @property
+    def simulated(self) -> bool:
+        return any(c.source == "test" for c in self.cameras)
+
+
+@dataclass(frozen=True)
 class AppConfig:
     gnss: dict[str, Any] = field(default_factory=lambda: {"adapter": "fake"})
     victron: dict[str, Any] = field(default_factory=lambda: {"adapter": "fake"})
@@ -60,6 +91,7 @@ class AppConfig:
     battery_reserve_soc_pct: float = 10.0
     sim_time_scale: float = 1.0
     map: MapConfig = MapConfig()
+    video: VideoConfig = VideoConfig()
     screen_layout: str = "auto"  # auto | single | dual
     drive_window: WindowConfig = WindowConfig(fullscreen=True)
     camper_window: WindowConfig = WindowConfig(screen=1, fullscreen=True)
@@ -97,6 +129,7 @@ def parse_config(raw: dict[str, Any]) -> AppConfig:
             battery_reserve_soc_pct=float(raw.get("battery", {}).get("reserve_soc_pct", 10.0)),
             sim_time_scale=float(raw.get("simulation", {}).get("time_scale", 1.0)),
             map=MapConfig(**raw.get("map", {})),
+            video=_video(raw.get("video", {})),
             navigation_command=list(raw.get("navigation", {}).get("command", [])),
             camp_idle_timeout_s=float(raw.get("modes", {}).get("camp_idle_timeout_s", 0.0)),
             freshness={
@@ -125,3 +158,17 @@ def _choice(value: str, allowed: tuple[str, ...], name: str) -> str:
     if value not in allowed:
         raise ValueError(f"{name} must be one of {allowed}, not {value!r}")
     return value
+
+
+def _video(raw: dict[str, Any]) -> VideoConfig:
+    cams = tuple(CameraConfig(**c) for c in raw.get("cameras", []))
+    names = [c.name for c in cams]
+    if len(set(names)) != len(names) or not all(n.isidentifier() for n in names):
+        raise ValueError("video.cameras: names must be unique identifiers")
+    for c in cams:
+        _choice(c.source, ("test", "v4l2-h264"), f"video.cameras.{c.name}.source")
+        _choice(c.audio_source, ("test", "pulse"), f"video.cameras.{c.name}.audio_source")
+    if sum(c.audio for c in cams) > 1:
+        raise ValueError("video.cameras: only one camera can record the microphone")
+    rest = {k: v for k, v in raw.items() if k != "cameras"}
+    return VideoConfig(**rest, cameras=cams)

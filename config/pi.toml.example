@@ -44,6 +44,35 @@ command = []
 [modes]
 camp_idle_timeout_s = 0   # 0 = never enter STANDBY automatically
 
+# --- dashcam (separate process: apps/video/main.py) ---------------------------
+[video]
+enabled = true
+root_dir = "~/aalu-data/dashcam"   # TBD: SSD mount point
+segment_s = 60
+retention_h = 24          # keep one day of recordings
+min_free_pct = 10         # and never fill the disk beyond this
+protected_max_gb = 20     # "Save clip" segments are never auto-deleted
+protect_before_s = 60
+protect_after_s = 60
+
+[[video.cameras]]
+name = "front"
+source = "test"           # simulated camera; "v4l2-h264" for a UVC camera with H.264 output
+width = 960
+height = 540
+fps = 15
+bitrate_kbps = 1500
+audio = true              # cabin microphone recorded with the front camera
+audio_source = "test"     # "pulse" = default microphone
+
+[[video.cameras]]
+name = "rear"
+source = "test"
+width = 960
+height = 540
+fps = 15
+bitrate_kbps = 1500
+
 # --- freshness: age after which data is stale / disconnected ------------------
 [freshness.gnss]
 stale_after_s = 3
@@ -61,6 +90,10 @@ disconnected_after_s = 5
 [freshness.loads]
 stale_after_s = 1.5
 disconnected_after_s = 5
+
+[freshness.video]
+stale_after_s = 5
+disconnected_after_s = 10
 
 [freshness.system]
 stale_after_s = 15

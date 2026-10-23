@@ -69,6 +69,8 @@ class Reading:
                 value = value.value
             elif isinstance(value, dict):
                 value = dict(value)
+            elif isinstance(value, list):
+                value = list(value)
             out[f.name] = value
         return out
 
@@ -181,3 +183,22 @@ class SystemReading(Reading):
     mem_used_pct: float | None = None
     disk_free_gb: float | None = None
     throttled: bool | None = None
+
+
+@dataclass(frozen=True, kw_only=True)
+class VideoReading(Reading):
+    """Status of the separate dashcam service."""
+
+    source: str = "video"
+    recording: bool | None = None
+    cameras: list[dict] = field(default_factory=list)  # name, state, audio, last_error...
+    disk_free_gb: float | None = None
+    disk_free_pct: float | None = None
+    used_gb: float | None = None
+    segments: int | None = None
+    oldest_age_h: float | None = None
+    retention_h: float | None = None
+    protected_segments: int | None = None
+    protected_gb: float | None = None
+    protected_max_gb: float | None = None
+    protecting: bool | None = None

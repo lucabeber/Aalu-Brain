@@ -30,6 +30,13 @@ Rectangle {
         DockButton { icon: "battery"; label: "Energy"; checked: root.layout === "energy"; onClicked: root.layoutSelected("energy") }
         DockButton { icon: "camera"; label: "Camera"; onClicked: root.cameraRequested() }
         DockButton {
+            readonly property var v: Vehicle.video || ({})
+            icon: "rec"; label: v.protecting ? "Saving…" : "Save clip"
+            checked: v.protecting === true
+            active: v.recording === true
+            onClicked: Backend.protectClip()
+        }
+        DockButton {
             icon: "nav"; label: "Navigate"
             active: Vehicle.navigationAvailable === true
             onClicked: Backend.launchNavigation()

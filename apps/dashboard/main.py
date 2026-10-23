@@ -45,6 +45,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     p.add_argument("--only", choices=("drive", "camper"), help="open only this view")
     p.add_argument("--view", choices=("drive", "camper"), default="drive",
                    help="view shown first in a single window")
+    p.add_argument("--page", default="energy",
+                   help="camper page shown first (energy, water, lights, audio, dashcam, ...)")
     p.add_argument("--quit-after", type=float, metavar="S",
                    help="exit after S seconds (smoke tests)")
     p.add_argument("--screenshot-dir", metavar="DIR",
@@ -88,7 +90,8 @@ def resolve_windows(config: AppConfig, layout: str, only: str | None,
 
 
 def create_windows(engine: QQmlApplicationEngine, config: AppConfig, layout: str,
-                   only: str | None, view: str = "drive") -> dict[str, QWindow]:
+                   only: str | None, view: str = "drive",
+                   page: str = "energy") -> dict[str, QWindow]:
     component = QQmlComponent(engine, QUrl.fromLocalFile(str(QML_MAIN)))
     if component.isError():
         raise RuntimeError("\n".join(e.toString() for e in component.errors()))
@@ -98,7 +101,7 @@ def create_windows(engine: QQmlApplicationEngine, config: AppConfig, layout: str
         f"{s.name()} {s.geometry().width()}x{s.geometry().height()}" for s in screens))
     windows: dict[str, QWindow] = {}
     for name, cfg in resolve_windows(config, layout, only, len(screens)):
-        props = {"screenName": name}
+        props = {"screenName": name, "camperPage": page}
         if name == "single":
             props["view"] = view
         obj = component.createWithInitialProperties(props)
@@ -145,7 +148,7 @@ def main(argv: list[str] | None = None) -> int:
     engine.warnings.connect(lambda ws: warnings.extend(w.toString() for w in ws))
 
     windows = create_windows(engine, config, args.layout or config.screen_layout, args.only,
-                             args.view)
+                             args.view, args.page)
     backend.start()
 
     # Clean exit on SIGTERM (systemd) and Ctrl+C. A timer lets Python see signals.

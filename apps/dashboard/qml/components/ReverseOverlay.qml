@@ -21,7 +21,9 @@ Rectangle {
         }
         Text {
             anchors.horizontalCenter: parent.horizontalCenter
-            text: "No video: camera service not installed yet (phase 6)"
+            text: (Vehicle.video || {}).recording === true
+                  ? "Recording. Live view comes with the real cameras (phase 6)"
+                  : "Dashcam service not running"
             color: "#999"; font.pixelSize: Theme.fontS
         }
     }

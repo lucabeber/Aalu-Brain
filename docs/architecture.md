@@ -41,6 +41,7 @@ Each reading is a frozen dataclass with the envelope `schema_version`, `source`,
 | `audio_output` | `AudioOutputReading` (volume, mute, EQ preset) | fake |
 | `vehicle_inputs` | `VehicleInputsReading` (ACC, reverse) | fake MCU |
 | `loads` | `LoadsReading` (output → confirmed bool) | fake MCU |
+| `video` | `VideoReading` (dashcam service: recording, cameras, storage, saved clips) | video service socket |
 | `system` | `SystemReading` (CPU temp, load, RAM, disk, throttling) | real (/sys, /proc, vcgencmd) |
 
 ## Data quality ([ADR 0002](decisions/0002-data-quality-and-staleness.md))
@@ -95,3 +96,11 @@ from the dock.
 3. Add a config value in `[adapters.<name>]` and the branch in `VehicleCore._build_adapters`.
 4. Tests: parser/unit tests on recorded data in `tests/fixtures/`, and a hardware test in
    `tests/hardware/` marked `@pytest.mark.hardware`.
+
+## Dashcam ([ADR 0006](decisions/0006-dashcam-storage.md))
+
+`apps/video/main.py` runs `VideoService`: one `CameraRecorder` per camera supervising a
+`gst-launch-1.0` pipeline that writes 60 s MKV segments into `incoming/`; finished segments
+move to dated folders, a housekeeping thread enforces the 24 h retention and the free-space
+floor, and "Save clip" moves the surrounding segments to `protected/`. The dashboard reads
+its status over a UNIX socket (`VideoServiceAdapter`, source `video`).

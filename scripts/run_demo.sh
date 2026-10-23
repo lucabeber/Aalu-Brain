@@ -19,4 +19,17 @@ if [[ ! -x .venv/bin/python ]]; then
     fi
 fi
 
-exec .venv/bin/python apps/dashboard/main.py --config "${AALU_CONFIG:-config/dev.toml}" "$@"
+config="${AALU_CONFIG:-config/dev.toml}"
+
+# Dashcam recording runs as its own process, so a dashboard crash never stops it.
+# AALU_NO_VIDEO=1 skips it (e.g. when it already runs as a service).
+if [[ -z "${AALU_NO_VIDEO:-}" ]] && command -v gst-launch-1.0 >/dev/null; then
+    .venv/bin/python apps/video/main.py --config "$config" &
+    video_pid=$!
+    trap 'kill -TERM $video_pid 2>/dev/null; wait $video_pid 2>/dev/null' EXIT
+elif [[ -z "${AALU_NO_VIDEO:-}" ]]; then
+    echo "GStreamer not installed: dashcam disabled (sudo apt install gstreamer1.0-tools" \
+         "gstreamer1.0-plugins-good gstreamer1.0-plugins-bad)" >&2
+fi
+
+.venv/bin/python apps/dashboard/main.py --config "$config" "$@"

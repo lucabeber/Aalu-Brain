@@ -48,6 +48,9 @@ Canvas {
             g.lineTo(w*.9, h*.5); g.lineTo(w*.9, h*.68); g.closePath(); g.stroke()
             g.beginPath(); g.arc(w*.3, h*.72, w*.08, 0, 2*Math.PI); g.fill()
             g.beginPath(); g.arc(w*.7, h*.72, w*.08, 0, 2*Math.PI); g.fill(); break
+        case "rec":
+            g.beginPath(); g.arc(w*.5, h*.5, w*.36, 0, 2*Math.PI); g.stroke()
+            g.beginPath(); g.arc(w*.5, h*.5, w*.2, 0, 2*Math.PI); g.fill(); break
         case "theme":
             g.beginPath(); g.arc(w*.5, h*.5, w*.32, 0, 2*Math.PI); g.stroke()
             g.beginPath(); g.arc(w*.5, h*.5, w*.32, -Math.PI/2, Math.PI/2); g.closePath(); g.fill(); break

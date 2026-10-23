@@ -12,6 +12,7 @@ from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from aalu.adapters.audio.fake import FakeAudioOutput, FakePhone
@@ -28,12 +29,14 @@ from aalu.adapters.mcu.fake import FakeMcu
 from aalu.adapters.scenario import Scenario
 from aalu.adapters.system.health import SystemHealthAdapter
 from aalu.adapters.victron.fake import FakeVictron
+from aalu.adapters.video.service_client import VideoServiceAdapter
 from aalu.core.alarms import AlarmEngine
 from aalu.core.models import GnssFix, GnssReading, Reading, VehicleInputsReading
 from aalu.core.modes import ModeEvent, ModeMachine, Transition, VehicleMode
 from aalu.core.state_store import StateStore
 from aalu.services.config import AppConfig, ConfigError
 from aalu.services.energy import EnergyBalance, EnergyConfig
+from aalu.video.service import default_socket_path
 
 log = logging.getLogger(__name__)
 
@@ -48,10 +51,11 @@ SOURCE_LABELS = {
     "audio_output": "Audio output",
     "vehicle_inputs": "Vehicle inputs",
     "loads": "Loads",
+    "video": "Dashcam",
     "system": "System",
 }
 # Sources whose loss is shown as a (non-invasive) notice in the alarm panel.
-WATCHED_SOURCES = ("gnss", "house_battery", "solar", "dcdc", "vehicle_inputs", "loads")
+WATCHED_SOURCES = ("gnss", "house_battery", "solar", "dcdc", "vehicle_inputs", "loads", "video")
 ENERGY_SOURCES = {"house_battery", "solar", "dcdc"}
 
 LOAD_CONFIRM_TIMEOUT_S = 3.0
@@ -91,6 +95,7 @@ class VehicleCore:
         self.media: MediaController | None = None
         self.audio: AudioOutputController | None = None
         self.load_controller: LoadController | None = None
+        self.video: VideoServiceAdapter | None = None
         self.adapters: list[Adapter] = self._build_adapters()
         for adapter in self.adapters:
             for source in adapter.sources:
@@ -172,6 +177,12 @@ class VehicleCore:
     # --- commands --------------------------------------------------------
     def loads_available(self) -> bool:
         return self.load_controller is not None and self.store.snapshot("loads").quality.is_live
+
+    def protect_clip(self) -> bool:
+        """Dashcam "save clip": keep the last and next minute of every camera."""
+        ok = self.video is not None and self.video.protect()
+        self._event("Clip saved" if ok else "Clip NOT saved: dashcam service not available")
+        return ok
 
     def request_load(self, output: str, on: bool) -> bool:
         if not self.loads_available():
@@ -287,6 +298,11 @@ class VehicleCore:
             adapters += [self.media, self.audio]
         elif kind != "none":
             raise ConfigError(f"media: adapter {kind!r} not implemented yet")
+
+        if c.video.enabled and c.video.cameras:
+            socket = Path(c.video.socket) if c.video.socket else default_socket_path()
+            self.video = VideoServiceAdapter(socket, simulated=c.video.simulated)
+            adapters.append(self.video)
 
         if c.system.get("adapter", "real") == "real":
             adapters.append(SystemHealthAdapter(c.system.get("data_dir", "/")))
